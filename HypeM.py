@@ -246,10 +246,14 @@ class HypeM(object):
 
     def get_track_blogs(self, itemid, page=None, count=None, hm_token=None):
         '''Blogs that posted a track, by ID
+        Not paginated by default, but accepts page and count parameters as normal
+
 
         Args:
             REQUIRED:
             - string itemid: ID of track
+            - int page: the page of the collection
+            - int count: items per page
 
             Optional:
             - string hm_token: user token from /signup or /get_token
@@ -260,19 +264,23 @@ class HypeM(object):
         query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
-    def get_track_favorites(self, itemid, hm_token=None):
-        '''Get users that favorited a track, by ID
+    def get_track_favorites(self, itemid, page=None, count=None, hm_token=None):
+        '''Get users that favorited a track, by ID.
+        Not paginated by default, but accepts page and count parameters as normal
 
         Args:
             REQUIRED:
             - string itemid: ID of track
 
             Optional:
+            - int page: the page of the collection
+            - int count: items per page
             - string hm_token: user token from /signup or /get_token
 
         Returns JSON of response'''
 
         query_string = 'tracks/' + str(itemid) + '/users?'
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def get_popular(self, mode=None, page=None, count=None, hm_token=None):
