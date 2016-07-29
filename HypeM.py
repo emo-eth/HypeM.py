@@ -16,7 +16,6 @@ class APIError(Exception):
 
 
 class HypeM(object):
-    '''TODO: Change hm_token check to len > 0 instead of type == bool?'''
 
     _auth = 'swagger'  # auth doesn't even appear to be necessary
     _api = 'https://api.hypem.com/v2/'
@@ -37,7 +36,8 @@ class HypeM(object):
             self.hm_token = hm_token
         else:
             if username and password:
-                self.hm_token = self.get_token(username=username, password=password)
+                self.hm_token = self.get_token(
+                    username=username, password=password)
         if auth:
             self._auth = auth
 
@@ -95,6 +95,10 @@ class HypeM(object):
         '''Formats page parameter'''
         return self._param('page', page)
 
+    def _page_count(self, page, count):
+        '''Formats page and count parameters'''
+        return self._page(page) + self._count(count)
+
     def _hm_token(self, hm_token):
         '''Formats hm_token parameter'''
         if hm_token:
@@ -104,15 +108,12 @@ class HypeM(object):
         # otherwise, use string
         return self._param('hm_token', hm_token)
 
-    def _page_count(self, page, count):
-        '''Formats page and count parameters'''
-        return self._page(page) + self._count(count)
-
     def _check_status(self, response):
         '''Saves a bit of typing'''
         sc = response.status_code
         # 2xx statuses are all success
         if sc // 100 == 2:
+            assert response.text, 'Invalid response from server'
             return
         elif sc == 403:
             raise RateLimitError()
@@ -120,7 +121,8 @@ class HypeM(object):
             response = json.loads(response.text)
             raise APIError(response['error_msg'])
         else:
-            raise ValueError('Status code unhandled: ' + str(sc))
+            raise ValueError('Status code unhandled: ' +
+                             str(sc) + ' for URL ' + response.url)
 
     def get_own_auth(self):
         req = requests.get('http://hypem.com', headers=self.headers)
@@ -158,8 +160,7 @@ class HypeM(object):
         query_string = 'blogs?'
         if hydrate:
             query_string += self._param('hydrate', 1)
-        query_string += self._page(page)
-        query_string += self._count(count)
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def get_blogs_count(self, hm_token=None):
@@ -202,8 +203,7 @@ class HypeM(object):
 
         Returns JSON of response'''
         query_string = 'blogs/' + str(siteid) + '/tracks?'
-        query_string += self._page(page)
-        query_string += self._count(count)
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def get_tracks(self, q=None, sort=None, page=None, count=None, hm_token=None):
@@ -222,12 +222,12 @@ class HypeM(object):
             - string hm_token: user token from /signup or /get_token
 
         Returns JSON of response'''
-        assert sort in ('latest', 'loved', 'posted') or sort is None, '"Sort" param must be "latest", "loved", or "posted"'
+        assert sort in (
+            'latest', 'loved', 'posted') or sort is None, '"Sort" param must be "latest", "loved", or "posted"'
         query_string = 'tracks?'
         query_string += self._param('q', q)
         query_string += self._param('sort', sort)
-        query_string += self._page(page)
-        query_string += self._count(count)
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def get_track(self, itemid, hm_token=None):
@@ -244,7 +244,7 @@ class HypeM(object):
         query_string = 'tracks/' + str(itemid) + '?'
         return self._get(query_string, hm_token)
 
-    def get_track_blogs(self, itemid, hm_token=None):
+    def get_track_blogs(self, itemid, page=None, count=None, hm_token=None):
         '''Blogs that posted a track, by ID
 
         Args:
@@ -257,6 +257,7 @@ class HypeM(object):
         Returns JSON of response'''
 
         query_string = 'tracks/' + str(itemid) + '/blogs?'
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def get_track_favorites(self, itemid, hm_token=None):
@@ -294,8 +295,7 @@ class HypeM(object):
             '"Mode" must be "now", "lastweek", "noremix," or "remix"'
         query_string = 'popular?'
         query_string += self._param('mode', mode)
-        query_string += self._page(page)
-        query_string += self._count(count)
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def get_set_tracks(self, setname, hm_token):
@@ -330,8 +330,7 @@ class HypeM(object):
         assert sort == 'popular', '"Sort" currently must be "popular"'
         query_string = 'artists?'
         query_string += self._param('sort', sort)
-        query_string += self._page(page)
-        query_string += self._count(count)
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def get_artist(self, artist, hm_token=None):
@@ -363,16 +362,15 @@ class HypeM(object):
         Returns JSON of response
         '''
         query_string = 'artists/' + artist + '/tracks?'
-        query_string += self._page(page)
-        query_string += self._count(count)
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def get_featured(self, type_param=None, page=None, count=None, hm_token=None):
-        assert type_param in ('all', 'premiere') or type_param is None, '"type_param" must be "all" or "premiere"'
+        assert type_param in (
+            'all', 'premiere') or type_param is None, '"type_param" must be "all" or "premiere"'
         query_string = 'featured?'
         query_string += self._param('type', type_param)
-        query_string += self._page(page)
-        query_string += self._count(count)
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def get_tags(self, hm_token=None):
@@ -420,8 +418,7 @@ class HypeM(object):
         query_string = 'tags/' + tag + '/tracks?'
         query_string += self._param('fav_from', fav_from)
         query_string += self._param('fav_to', fav_to)
-        query_string += self._page(page)
-        query_string += self._count(count)
+        query_string += self._page_count(page, count)
         return self._get(query_string, hm_token)
 
     def search_users(self, q, hm_token=None):
@@ -635,7 +632,8 @@ class HypeM(object):
             - string tw_oauth_token_secret: a twitter API token
 
         Returns an hm_token '''
-        assert (username and password) or fb_oauth_token or (tw_oauth_token and tw_oauth_token_secret)
+        assert (username and password) or fb_oauth_token or (
+            tw_oauth_token and tw_oauth_token_secret)
         endpoint = 'get_token'
         payload = {}
         payload['username'] = username
@@ -742,7 +740,8 @@ class HypeM(object):
         if not hm_token:
             hm_token = self.hm_token
         assert hm_token, 'Post methods require a valid hm_token'
-        assert any(fb_uid, fb_oauth_token, tw_oauth_token, tw_oauth_token_secret), 'Must provide at least one valid token'
+        assert any(fb_uid, fb_oauth_token, tw_oauth_token,
+                   tw_oauth_token_secret), 'Must provide at least one valid token'
         if tw_oauth_token or tw_oauth_token_secret:
             assert tw_oauth_token and tw_oauth_token_secret, 'Must provide both twitter token and secret'
         '''Should this assert both fb_uid and fb_oauth_token as well?? Not sure'''
