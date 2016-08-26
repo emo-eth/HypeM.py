@@ -1,6 +1,7 @@
 import requests
 import json
 import uuid
+import warnings
 
 
 class RateLimitError(Exception):
@@ -78,7 +79,7 @@ class HypeM(object):
         query_string = ''
         # remove self since it is superfluous
         # remove hm_token since that's processed later
-        for val in ['self'] + endpoint_args:
+        for val in ['self', 'query_string'] + endpoint_args:
             locals_copy.pop(val)
         for param, val in locals_copy.items():
             query_string += self._param(param, val)
@@ -726,7 +727,7 @@ class HypeM(object):
         query_string += self._parse_params(locals().copy(), [])
         return self._get(query_string)
 
-    def get_site_info(self, tag, hm_token=None):
+    def get_tag_info(self, tag, hm_token=None):
         """Get blog metadata
         Get blog information like url, number of subscribers, etc
         GET method
@@ -739,7 +740,8 @@ class HypeM(object):
 
         Returns JSON of response.
         """
-
+        warnings.warn("This method doesn't seem to work and is "
+            "incorrectly documented at the source.", RuntimeWarning)
         query_string = '/tags/' + str(tag) + '?'
         query_string += self._parse_params(locals().copy(), ['tag'])
         return self._get(query_string)
