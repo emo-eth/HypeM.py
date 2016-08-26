@@ -18,7 +18,7 @@ class APIError(Exception):
 class HypeM(object):
 
     _auth = 'swagger'  # auth doesn't even appear to be necessary
-    _api = 'https://api.hypem.com/v2/'
+    _api = 'https://api.hypem.com/v2'
     headers = {'User-Agent': 'HypeM.py'}
     hm_token = ''
 
@@ -48,7 +48,7 @@ class HypeM(object):
         '''API auth key property'''
         return 'key=' + self._auth
 
-    def _get(self, qstring, hm_token):
+    def _get(self, qstring):
         '''Handles auth, API query, status checking, and json conversion.
         May raise an exception depending on response status code.
         Returns JSON response.
@@ -58,8 +58,6 @@ class HypeM(object):
             - string hm_token: user token (or True if using self.hm_token)
             - function requests_fn: appropriate function from the requests
                 library (GET, POST, DELETE)'''
-        if hm_token:
-            qstring += self._hm_token(self.hm_token)
         qstring += self._key
         response = requests.get(self._api + qstring, headers=self.headers)
         self._check_status(response)
@@ -75,6 +73,23 @@ class HypeM(object):
         self._check_status(response)
         return json.loads(response.text)
 
+    def _parse_params(self, locals_copy, endpoint_args):
+        '''Format all params for GET request'''
+        query_string = ''
+        # remove self since it is superfluous
+        # remove hm_token since that's processed later
+        for val in ['self'] + endpoint_args:
+            locals_copy.pop(val)
+        for param, val in locals_copy.items():
+            query_string += self._param(param, val)
+        return query_string
+
+    def _parse_payload(self, locals_copy, endpoint_args):
+        '''Remove self and endpoint args from POST/DELETE payload'''
+        for val in ['self'] + endpoint_args:
+            locals_copy.pop(val)
+        return locals_copy
+
     def _param(self, param, value):
         '''Formats a parameter/value pair for html
         Args:
@@ -83,30 +98,17 @@ class HypeM(object):
 
         Returns correctly formatted parameter/value'''
         if value:
+            if param == 'hm_token' and type(value) is bool:
+                value = self.hm_token
             return param + '=' + str(value) + '&'
         else:
             return ''
 
-    def _count(self, count):
-        '''Formats count parameter'''
-        return self._param('count', count)
-
-    def _page(self, page):
-        '''Formats page parameter'''
-        return self._param('page', page)
-
-    def _page_count(self, page, count):
-        '''Formats page and count parameters'''
-        return self._page(page) + self._count(count)
-
-    def _hm_token(self, hm_token):
-        '''Formats hm_token parameter'''
-        if hm_token:
-            # if passed a bool, use self.hm_token
-            if type(hm_token) is bool:
-                return self._param('hm_token', self.hm_token)
-        # otherwise, use string
-        return self._param('hm_token', hm_token)
+    def _assert_hm_token(self, hm_token):
+        if not hm_token:
+            hm_token = self.hm_token
+        assert hm_token, 'Post methods require a valid hm_token'
+        return hm_token
 
     def _check_status(self, response):
         '''Saves a bit of typing'''
@@ -140,679 +142,853 @@ class HypeM(object):
         Uses auth from API documentation by default'''
         self._auth = auth
 
-    '''GET methods'''
+    ''' Methods '''
 
-    def get_blogs(self, hydrate=False, page=None, count=None, hm_token=None):
-        '''Lists all blogs currently tracked by Hype Machine.
-        Not paginated by default, but accepts page and count parameters as normal
-        (recommended if hydrated). Pass hydrate=1 to get a sub-list of recently
-        posted artists, and possibly other metadata
+    ''' /artists '''
 
-        Args:
-            Optional:
-            - bool hydrate: include recently posted tracks in response
-            - int page: page of collection
-            - int count: items per page
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-
-        query_string = 'blogs?'
-        if hydrate:
-            query_string += self._param('hydrate', 1)
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
-
-    def get_blogs_count(self, hm_token=None):
-        '''Get total count of blogs in directory (useful for pagination)
-
-        Args:
-            Optional:
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-
-        query_string = 'blogs/count?'
-        return self._get(query_string, hm_token)
-
-    def get_blog(self, siteid, hm_token=None):
-        '''Get blog information like url, number of subscribers, etc
-
-        Args:
-            REQUIRED:
-            - string siteid: the id of the site
-
-            Optional:
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-        query_string = 'blogs/' + str(siteid) + '?'
-        return self._get(query_string, hm_token)
-
-    def get_blog_tracks(self, siteid, page=None, count=None, hm_token=None):
-        '''Get tracks covered by a blog
-
-        Args:
-            REQUIRED:
-            - string siteid: the id of the site
-
-            Optional:
-            - int page: the page of the collection
-            - int count: items per page
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-        query_string = 'blogs/' + str(siteid) + '/tracks?'
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
-
-    def get_tracks(self, q=None, sort=None, page=None, count=None, hm_token=None):
-        '''List of tracks, unfiltered and chronological (equivalent to 'Latest -> All'
-        on the site) by default. Sort options will yield fully sorted result sets when
-        combined with a search parameter (?q=...) or summary charts (loved => popular,
-        posted => popular/artists) on their own
-
-        Args:
-            Optional:
-            - string q: a string to search for
-            - string sort: sort chronologically, by number of favorites or number of
-                blog posts (default is 'latest', must be combined with 'q' otherwise)
-            - int page: the page of the collection
-            - int count: items per page
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-        assert sort in (
-            'latest', 'loved', 'posted') or sort is None, '"Sort" param must be "latest", "loved", or "posted"'
-        query_string = 'tracks?'
-        query_string += self._param('q', q)
-        query_string += self._param('sort', sort)
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
-
-    def get_track(self, itemid, hm_token=None):
-        '''Get metadata of a single track, by ID
-
-        Args:
-            REQUIRED:
-            - string itemid: ID of track
-
-            Optional:
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-        query_string = 'tracks/' + str(itemid) + '?'
-        return self._get(query_string, hm_token)
-
-    def get_track_blogs(self, itemid, page=None, count=None, hm_token=None):
-        '''Blogs that posted a track, by ID
-        Not paginated by default, but accepts page and count parameters as normal
-
-
-        Args:
-            REQUIRED:
-            - string itemid: ID of track
-            - int page: the page of the collection
-            - int count: items per page
-
-            Optional:
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-
-        query_string = 'tracks/' + str(itemid) + '/blogs?'
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
-
-    def get_track_favorites(self, itemid, page=None, count=None, hm_token=None):
-        '''Get users that favorited a track, by ID.
-        Not paginated by default, but accepts page and count parameters as normal
-
-        Args:
-            REQUIRED:
-            - string itemid: ID of track
-
-            Optional:
-            - int page: the page of the collection
-            - int count: items per page
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-
-        query_string = 'tracks/' + str(itemid) + '/users?'
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
-
-    def get_popular(self, mode=None, page=None, count=None, hm_token=None):
-        '''Various popular charts: 3 day top 50 ('now'), calendar last week
-        ('lastweek'), remixes excluded or remixes only. Aliased as
-        /tracks?sort=popular for ontological consistency
-
-        Args:
-            Optional:
-            - string mode: a string to search for (now, lastweek, noremix, remix)
-            - string sort: sort chronologically, by number of favorites or number of
-                blog posts (default is 'latest', must be combined with 'q' otherwise)
-            - int page: the page of the collection
-            - int count: items per page
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response
-        '''
-        assert mode in ('now', 'lastweek', 'noremix', 'remix') or mode is None, \
-            '"Mode" must be "now", "lastweek", "noremix," or "remix"'
-        query_string = 'popular?'
-        query_string += self._param('mode', mode)
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
-
-    def get_set_tracks(self, setname, hm_token):
-        '''Get tracks in a previously defined set specified by setname
-
-        Args:
-            REQUIRED:
-            - string setname: A short name of the set, for example 'test'
-
-            Optional:
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-
-        query_string = 'set/' + setname + '/tracks?'
-        return self._get(query_string, hm_token)
-
-    def get_artists(self, sort='popular', page=None, count=None, hm_token=None):
-        '''Equivalent to popular artists chart on the site
+    def popular_artists(self, sort, page=None, count=None, hm_token=None):
+        """Popular Artists
+        Equivalent to popular artists chart on the site
+        GET method
 
         Args:
             REQUIRED:
             - string sort: sort mode (currently must be 'popular')
-
+                allowable values: popular
             Optional:
             - int page: the page of the collection
             - int count: items per page
             - string hm_token: user token from /signup or /get_token
 
-        Returns JSON of response
-        '''
-        assert sort == 'popular', '"Sort" currently must be "popular"'
-        query_string = 'artists?'
-        query_string += self._param('sort', sort)
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
 
-    def get_artist(self, artist, hm_token=None):
-        '''Get artist metadata like artist thumbnail. Artist must be URI encoded
+        assert str(sort) in ['popular'], '"sort" must be popular'
+
+        query_string = '/artists?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def get_artist_info(self, artist, hm_token=None):
+        """Get artist metadata
+        Get artist metadata like artist thumbnail. Artist must be URI encoded
+        GET method
 
         Args:
             REQUIRED:
             - string artist: the artist
-
             Optional:
             - string hm_token: user token from /signup or /get_token
 
-        Returns JSON of response'''
-        query_string = 'artists/' + artist + '?'
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
+
+
+        query_string = '/artists/' + str(artist) + '?'
+        query_string += self._parse_params(locals().copy(), ['artist'])
+        return self._get(query_string)
 
     def get_artist_tracks(self, artist, page=None, count=None, hm_token=None):
-        '''Get tracks by an artist. Artist must be URI encoded
+        """Get artist tracks
+        Artist must be URI encoded
+        GET method
 
         Args:
             REQUIRED:
             - string artist: the artist
-
             Optional:
             - int page: the page of the collection
             - int count: items per page
             - string hm_token: user token from /signup or /get_token
 
-        Returns JSON of response
-        '''
-        query_string = 'artists/' + artist + '/tracks?'
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
 
-    def get_featured(self, type_param=None, page=None, count=None, hm_token=None):
-        assert type_param in (
-            'all', 'premiere') or type_param is None, '"type_param" must be "all" or "premiere"'
-        query_string = 'featured?'
-        query_string += self._param('type', type_param)
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+        query_string = '/artists/' + str(artist) + '/tracks?'
+        query_string += self._parse_params(locals().copy(), ['artist'])
+        return self._get(query_string)
+    ''' /blogs '''
 
-    def get_tags(self, hm_token=None):
-        '''List all tags
-
-        Args:
-            Optional:
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-        query_string = 'tags?'
-        return self._get(query_string, hm_token)
-
-    def get_tag(self, tag, hm_token=None):
-        '''Get blog information like url, number of subscribers, etc
+    def list_blogs(self, hydrate=None, page=None, count=None, hm_token=None):
+        """List all blogs
+        Lists all blogs currently tracked by Hype Machine. Not paginated by default, but accepts page and count parameters as normal (recommended if hydrated). Pass hydrate=1 to get a sub-list of recently posted artists, and possibly other metadata
+        GET method
 
         Args:
             REQUIRED:
-            - string tag: the genre tag
 
             Optional:
-            - string hm_token: user token from /signup or /get_token
-
-        Returns JSON of response'''
-        query_string = 'tags/' + tag + '?'
-        return self._get(query_string, hm_token)
-
-    def get_tag_tracks(self, tag, fav_from=None, fav_to=None, page=None,
-                       count=None, hm_token=None):
-        '''Get latest tracks for a tag
-
-        Args:
-            REQUIRED:
-            - string tag: the genre tag
-
-            Optional:
-            - int fav_from: minimum favorite count
-            - int fav_to: maximum favorite count
+            - bool hydrate: include recently_posted?
             - int page: the page of the collection
             - int count: items per page
             - string hm_token: user token from /signup or /get_token
 
-        Returns JSON of response
-        '''
-        query_string = 'tags/' + tag + '/tracks?'
-        query_string += self._param('fav_from', fav_from)
-        query_string += self._param('fav_to', fav_to)
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
 
-    def search_users(self, q, hm_token=None):
-        '''Search for a user by username/name
+        query_string = '/blogs?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def list_blogs_count(self, hm_token=None):
+        """Get count of blogs
+        Get total count of blogs in directory (useful for pagination)
+        GET method
 
         Args:
             REQUIRED:
-            - string q: username or name to search
 
             Optional:
             - string hm_token: user token from /signup or /get_token
 
-        Returns JSON of response'''
-        query_string = 'users?'
-        query_string += self._param('q', q)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
 
-    def get_user(self, username, hm_token=None):
-        '''Get user metadata
+        query_string = '/blogs/count?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def get_site_info(self, siteid, hm_token=None):
+        """Get blog metadata
+        Get blog information like url, number of subscribers, etc
+        GET method
 
         Args:
             REQUIRED:
-            - string username: the username
-
+            - int siteid: the id of the site
             Optional:
             - string hm_token: user token from /signup or /get_token
 
-        Returns JSON of response'''
-        query_string = 'users/' + username + '?'
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
 
-    def get_user_favorites(self, username, page=None, count=None, hm_token=None):
-        '''Get latest tracks for a tag
+        query_string = '/blogs/' + str(siteid) + '?'
+        query_string += self._parse_params(locals().copy(), ['siteid'])
+        return self._get(query_string)
+
+    def get_blog_tracks(self, siteid, page=None, count=None, hm_token=None):
+        """Get blog tracks
+
+        GET method
 
         Args:
             REQUIRED:
-            - string username: the username
-
+            - int siteid: the id of the site
             Optional:
             - int page: the page of the collection
             - int count: items per page
             - string hm_token: user token from /signup or /get_token
 
-        Returns JSON of response
-        '''
-        query_string = 'users/' + username + '/favorites?'
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
 
-    def get_user_playlist(self, username, playlist_id=0, page=None, count=None):
-        '''Get items in the user's playlist
+        query_string = '/blogs/' + str(siteid) + '/tracks?'
+        query_string += self._parse_params(locals().copy(), ['siteid'])
+        return self._get(query_string)
+
+    ''' /featured '''
+
+    def featured(self, type='all', page=None, count=None, hm_token=None):
+        """Get featured things, interleaved or separated
+        count and page are only meaningful in 'premieres' mode, otherwise we serve 6 pemieres and 1 site, in chronological order
+        GET method
 
         Args:
             REQUIRED:
-            - string username: the username
-            - int playlist_id: the playlist id (0, 1, or 2)
 
             Optional:
+            - string type: type of featured thing to return (default is 'all')
+                allowable values: premieres, all
             - int page: the page of the collection
             - int count: items per page
             - string hm_token: user token from /signup or /get_token
 
-        Returns JSON of response
-        '''
-        assert playlist_id in (0, 1, 2), '"Playlist_id" must be 0, 1, or 2'
-        query_string = 'user/' + username + '/playlists/' + playlist_id + '?'
-        query_string += self._page_count(page, count)
-        # this endpoint doesn't take the hm_token param
-        return self._get(query_string, None)
+        Returns JSON of response.
+        """
 
-    def get_user_friends(self, username, page=None, count=None, hm_token=None):
-        '''Not paginated by default, but accepts page and count parameters as normal
+        assert str(type) in ['premieres', 'all'], '"type" must be premieres or all'
 
-        Args:
-            REQUIRED:
-            - string username: the username
+        query_string = '/featured?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
 
-            Optional:
-            - int page: the page of the collection
-            - int count: items per page
-            - string hm_token: user token from /signup or /get_token
+    ''' /me '''
 
-        Returns JSON of response
-        '''
-        query_string = 'users/' + username + '/friends?'
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+    def favorites_me(self, hm_token=None, page=None, count=None):
+        """Get my favorites
 
-    def get_my_favorites(self, hm_token, page=None, count=None):
-        '''Get my favorites
+        GET method
 
         Args:
             REQUIRED:
             - string hm_token: user token from /signup or /get_token
-
             Optional:
             - int page: the page of the collection
             - int count: items per page
 
-        Returns JSON of response
-        '''
-        query_string = 'me/favorites?'
-        query_string += self._hm_token(hm_token)
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
 
-    def get_my_playlist(self, hm_token, playlist_id=0, page=None, count=None):
-        '''Get items in my playlist (assuming I have one)
+        query_string = '/me/favorites?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def toggle_favorite(self, type, val, hm_token=None):
+        """Add to favorites
+        Returns 1 or 0, reflecting the final state of the item (1 is favorite, 0 is not)
+        POST method
 
         Args:
             REQUIRED:
+            - string type: type of resource to favorite
+                allowable values: item, site, user
+            - string val: id of resource to favorite, generally numerical
             - string hm_token: user token from /signup or /get_token
+            Optional:
+
+
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+        assert str(type) in ['item', 'site', 'user'], '"type" must be item or site or user'
+
+        payload = self._parse_payload(locals().copy(), [])
+        endpoint = '/me/favorites'  # defined after payload bc of locals() call
+
+        return self._post(endpoint, payload)
+
+    def playlist_me(self, playlist_id, hm_token=None, page=None, count=None):
+        """Get items in my playlist
+        Playlist names are available at /me/playlist_names
+        GET method
+
+        Args:
+            REQUIRED:
             - int playlist_id: id of playlist
-
+                allowable values: 0, 1, 2
+            - string hm_token: user token from /signup or /get_token
             Optional:
             - int page: the page of the collection
             - int count: items per page
 
-        Returns JSON of response
-        '''
-        assert playlist_id in (0, 1, 2), '"Playlist_id" must be 0, 1, or 2'
-        query_string = 'me/playlists/' + str(playlist_id) + '?'
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+        assert str(playlist_id) in ['0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
 
-    def get_my_history(self, hm_token, sort='latest', page=None, count=None):
-        '''Get my history
+        query_string = '/me/playlists/' + str(playlist_id) + '?'
+        query_string += self._parse_params(locals().copy(), ['playlist_id'])
+        return self._get(query_string)
+
+    def add_playlist(self, playlist_id, itemid, hm_token=None):
+        """Add item to playlist
+        Returns 1 or 0, reflecting success and failure, respectively. Will also add item to favorites, if not already present there
+        POST method
+
+        Args:
+            REQUIRED:
+            - int playlist_id: id of playlist
+                allowable values: 0, 1, 2
+            - string itemid: itemid of item to add
+            - string hm_token: user token from /signup or /get_token
+            Optional:
+
+
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+        assert str(playlist_id) in ['0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
+
+        payload = self._parse_payload(locals().copy(), ['playlist_id'])
+        endpoint = '/me/playlists/' + str(playlist_id) + ''  # defined after payload bc of locals() call
+
+        return self._post(endpoint, payload)
+
+    def remove_playlist(self, playlist_id, itemid, hm_token=None):
+        """Remove item from playlist
+        Returns 1 or 0, reflecting success and failure, respectively. Will NOT remove item from favorites
+        DELETE method
+
+        Args:
+            REQUIRED:
+            - int playlist_id: id of playlist
+                allowable values: 0, 1, 2
+            - string itemid: itemid of item to remove
+            - string hm_token: user token from /signup or /get_token
+            Optional:
+
+
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+        assert str(playlist_id) in ['0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
+
+        payload = self._parse_payload(locals().copy(), ['playlist_id', 'itemid'])
+        endpoint = '/me/playlists/' + str(playlist_id) + '/items/' + str(itemid) + ''  # defined after payload bc of locals() call
+
+        return self._delete(endpoint, payload)
+
+    def history_me(self, hm_token=None, sort='latest', page=None, count=None):
+        """Get my history
+
+        GET method
 
         Args:
             REQUIRED:
             - string hm_token: user token from /signup or /get_token
-
             Optional:
-            - string sort: sort chronologically or by frequency of recent
-                listening (default is 'latest') ('latest' or 'obsessed')
+            - string sort: sort chronologically or by frequency of recent listening (default is 'latest')
+                allowable values: latest, obsessed
             - int page: the page of the collection
             - int count: items per page
 
-        Returns JSON of response
-        '''
-        assert sort in ('latest', 'obsessed') or sort is None, \
-            '"Sort" must be "latest" or "obsessed"'
-        query_string = 'me/history?'
-        query_string += self._param('sort', sort)
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+        assert str(sort) in ['latest', 'obsessed'], '"sort" must be latest or obsessed'
 
-    def get_my_friends(self, hm_token, page=None, count=None):
-        '''Get my friends
+        query_string = '/me/history?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def log_user_action(self, type, itemid, pos, hm_token=None, ts=None):
+        """Add user action to history
+        Log an action to site history, currently only listen events but eventually other types
+        POST method
+
+        Args:
+            REQUIRED:
+            - string type: type of action to add
+                allowable values: listen
+            - string itemid: id of resource for action (for items only currently)
+            - int pos: playback head position (must be < 45 to show in site history)
+            - string hm_token: user token from /signup or /get_token
+            Optional:
+            - int ts: timestamp of action, defaults to now (you can provide past timestamps for offline plays)
+
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+        assert str(type) in ['listen'], '"type" must be listen'
+
+        payload = self._parse_payload(locals().copy(), [])
+        endpoint = '/me/history'  # defined after payload bc of locals() call
+
+        return self._post(endpoint, payload)
+
+    def friends_me(self, hm_token=None, count=None, page=None):
+        """Get my friends
         Not paginated by default, but accepts page and count parameters as normal
+        GET method
 
         Args:
             REQUIRED:
             - string hm_token: user token from /signup or /get_token
-
             Optional:
-            - int page: the page of the collection
             - int count: items per page
+            - int page: the page of the collection
 
-        Returns JSON of response
-        '''
-        query_string = 'me/friends?'
-        query_string += self._page_count(page, count)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
 
-    def get_my_feed(self, hm_token, mode=None):
-        '''Get my subscriptions feed
+        query_string = '/me/friends?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def feed(self, hm_token=None, mode='all'):
+        """Get my subscriptions feed
+
+        GET method
 
         Args:
             REQUIRED:
             - string hm_token: user token from /signup or /get_token
-
             Optional:
             - string mode: feed items only from this source (default is 'all')
-                ('all,' 'blogs,' 'artists,' 'friends')
+                allowable values: blogs, artists, friends, all
 
-        Returns JSON of response
-        '''
-        query_string = 'me/feed?'
-        query_string += self._param('mode', mode)
-        return self._get(query_string, hm_token)
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+        assert str(mode) in ['blogs', 'artists', 'friends', 'all'], '"mode" must be blogs or artists or friends or all'
 
-    def get_my_feed_count(self, hm_token):
-        '''Get my feed count
+        query_string = '/me/feed?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def feed_count(self, hm_token=None):
+        """Get number of "unread" items in my feed
+
+        GET method
 
         Args:
             REQUIRED:
             - string hm_token: user token from /signup or /get_token
+            Optional:
 
-        Returns JSON of response
-        '''
-        query_string = 'me/feed/count?'
-        return self._get(query_string, hm_token)
 
-    '''POST methods'''
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+
+        query_string = '/me/feed/count?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def reset_feed_count(self, hm_token=None):
+        """Reset number of "unread" items in my feed to zero
+
+        POST method
+
+        Args:
+            REQUIRED:
+            - string hm_token: user token from /signup or /get_token
+            Optional:
+
+
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+
+        payload = self._parse_payload(locals().copy(), [])
+        endpoint = '/me/feed/count'  # defined after payload bc of locals() call
+
+        return self._post(endpoint, payload)
+
+    ''' / '''
+
+    def forgot_password(self, username):
+        """Request password reset email
+
+        POST method
+
+        Args:
+            REQUIRED:
+            - string username: user to reset password for
+            Optional:
+
+
+        Returns JSON of response.
+        """
+
+        payload = self._parse_payload(locals().copy(), [])
+        endpoint = '/forgot_password'  # defined after payload bc of locals() call
+
+        return self._post(endpoint, payload)
+
+    def connect(self, hm_token=None, fb_uid=None, fb_oauth_token=None, tw_oauth_token=None, tw_oauth_token_secret=None):
+        """Connect existing Hype Machine account with an external service (Twitter, Facebook, etc)
+        At least one external service token is required. To use this for 3rd party signup, try to log in with those credential first, then get hm_token and post it here with the 3rd party info
+        POST method
+
+        Args:
+            REQUIRED:
+            - string hm_token: user token from /signup or /get_token
+            Optional:
+            - string fb_uid: a facebook API uid
+            - string fb_oauth_token: a facebook API auth token (must be currently valid)
+            - string tw_oauth_token: a twitter API token secret
+            - string tw_oauth_token_secret: a twitter API token
+
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+        assert any(fb_uid, fb_oauth_token, tw_oauth_token,
+                   tw_oauth_token_secret), 'Must provide at least one valid token'
+        if tw_oauth_token or tw_oauth_token_secret:
+            assert tw_oauth_token and tw_oauth_token_secret, 'Must provide both twitter token and secret'
+
+        payload = self._parse_payload(locals().copy(), [])
+        endpoint = '/connect'  # defined after payload bc of locals() call
+
+        return self._post(endpoint, payload)
+
+    def disconnect(self, type, hm_token=None):
+        """Disconnect an external service account
+        Disconnects a previously connected account. Does not verify connection prior to removal.
+        POST method
+
+        Args:
+            REQUIRED:
+            - string hm_token: user token from /signup or /get_token
+            - string type: service to disconnect
+                allowable values: fb, tw
+            Optional:
+
+
+        Returns JSON of response.
+        """
+        hm_token = self._assert_hm_token(hm_token)
+        assert str(type) in ['fb', 'tw'], '"type" must be fb or tw'
+
+        payload = self._parse_payload(locals().copy(), [])
+        endpoint = '/disconnect'  # defined after payload bc of locals() call
+
+        return self._post(endpoint, payload)
+
+    def signup(self, username, email, password, newsletter, device_id=None, fb_uid=None, fb_oauth_token=None, tw_oauth_token=None, tw_oauth_token_secret=None):
+        """Create account
+        This requires a resonably unique device_id. Returns an hm_token upon success, which you can pass as a query parameter to all other endpoints to auth your account. Optionally accepts facebook and twitter tokens to connect those accounts.
+        POST method
+
+        Args:
+            REQUIRED:
+            - string username: desired username
+            - string email: email address
+            - string password: desired password
+            - bool newsletter: receive newsletter?
+            - hex device_id: exactly 16 hex characters (128 bits) uniquely identifying the client device
+            Optional:
+            - string fb_uid: a facebook API uid
+            - string fb_oauth_token: a facebook API auth token (must be currently valid)
+            - string tw_oauth_token: a twitter API token secret
+            - string tw_oauth_token_secret: a twitter API token
+
+        Returns JSON of response.
+        """
+
+        if not device_id:
+            device_id = uuid.uuid4()
+        payload = self._parse_payload(locals().copy(), [])
+        endpoint = '/signup'  # defined after payload bc of locals() call
+
+        return self._post(endpoint, payload)
 
     def get_token(self, username=None, password=None, fb_oauth_token=None,
                   tw_oauth_token=None, tw_oauth_token_secret=None):
-        '''Obtain an auth token
+        """Obtain an auth token
         Returns an hm_token like /signup. You must use this token to authenticate
         all requests for a logged-in user. Requires username and password OR fb
         token OR twitter token and secret (accounts must be connected via website
         first)
+        POST method
 
         Args:
+            REQUIRED:
             - string username: username
             - string password: password
             - string fb_oauth_token: a facebook API auth token (must be currently
                 valid)
             - string tw_oauth_token: a twitter API token secret
             - string tw_oauth_token_secret: a twitter API token
+            Optional:
 
-        Returns an hm_token '''
+        Returns JSON of response.
+        """
         assert (username and password) or fb_oauth_token or (
             tw_oauth_token and tw_oauth_token_secret)
-        endpoint = 'get_token'
-        payload = {}
-        payload['username'] = username
-        payload['password'] = password
-        # device_id should be 128-bit HEX string
-        # generate a random UUID
         device_id = str(uuid.uuid4())
-        payload['device_id'] = device_id
-        response = requests.post(self._api + endpoint, data=payload)
-        self._check_status(response)
-        return json.loads(response.text)['hm_token']
+        payload = self._parse_payload(locals().copy(), [])
+        endpoint = '/get_token'
+        self.hm_token = self._post(endpoint, payload)['hm_token']
 
-    def add_to_favorites(self, val, hm_token=None, type='item'):
-        '''Add to favorites
-        Returns 1 or 0, reflecting the final state of the item (1 is favorite,
-        0 is not)
+        return self.hm_token
 
-        Args:
-            REQUIRED:
-            - string val: id of resource to favorite, generally numerical
-                paramType: Body
-            - string hm_token: user token from /signup or /get_token
-                paramType: Query
+    ''' /set '''
 
-            Optional:
-            - string type: type of resource to favorite (default is 'item')
-                ('item', 'site', 'user')
-                paramType: Body
-        '''
-        if not hm_token:
-            hm_token = self.hm_token
-        assert hm_token, 'Post methods require a valid hm_token'
-        endpoint = 'me/favorites?' + 'hm_token=' + hm_token
-        payload = {}
-        payload['type'] = type
-        payload['val'] = val
-        return self._post(endpoint, payload)
+    def get_tracks_in_set(self, setname, hm_token=None):
+        """Get tracks in a previously defined set specified by setname
 
-    def add_to_playlist(self, itemid, hm_token=None, playlist_id=0):
-        '''Add item to playlist.
-        Returns 1 or 0, reflecting success and failure, respectively.
-        Will also add item to favorites, if not already present there
+        GET method
 
         Args:
             REQUIRED:
-            - string itemid: itemid of item to add
-                paramType: Body
-            - string hm_token: user token from /signup or /get_token
-                paramType: Query
+            - string setname: A short name of the set, for example 'test'
+            Optional:
+            - string hm_token: user token from /signup or /get_token, pass to include user's favorite information in result set
+
+        Returns JSON of response.
+        """
+
+        query_string = '/set/' + str(setname) + '/tracks?'
+        query_string += self._parse_params(locals().copy(), ['setname'])
+        return self._get(query_string)
+
+    ''' /tags '''
+
+    def list_tags(self, hm_token=None):
+        """List all tags
+
+        GET method
+
+        Args:
+            REQUIRED:
 
             Optional:
+            - string hm_token: user token from /signup or /get_token, pass to include user's favorite information in result set
+
+        Returns JSON of response.
+        """
+
+        query_string = '/tags?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def get_site_info(self, tag, hm_token=None):
+        """Get blog metadata
+        Get blog information like url, number of subscribers, etc
+        GET method
+
+        Args:
+            REQUIRED:
+            - string tag: the genere tag
+            Optional:
+            - string hm_token: user token from /signup or /get_token, pass to include user's favorite information in result set
+
+        Returns JSON of response.
+        """
+
+        query_string = '/tags/' + str(tag) + '?'
+        query_string += self._parse_params(locals().copy(), ['tag'])
+        return self._get(query_string)
+
+    def get_tag_tracks(self, tag, fav_from=None, fav_to=None, page=None, count=None, hm_token=None):
+        """Get latest tracks for the tag
+
+        GET method
+
+        Args:
+            REQUIRED:
+            - int tag: the genre tag
+            Optional:
+            - int fav_from: minimum favorite count
+            - int fav_to: maximum favorite count
+            - int page: the page of the collection
+            - int count: items per page
+            - string hm_token: user token from /signup or /get_token, pass to include user's favorite information in result set
+
+        Returns JSON of response.
+        """
+
+        query_string = '/tags/' + str(tag) + '/tracks?'
+        query_string += self._parse_params(locals().copy(), ['tag'])
+        return self._get(query_string)
+
+    ''' /tracks '''
+
+    def latest(self, q=None, sort='latest', page=None, count=None, hm_token=None):
+        """Tracks
+        List of tracks, unfiltered and chronological (equivalent to 'Latest -> All' on the site) by default. Sort options will yield fully sorted result sets when combined with a search parameter (?q=...) or summary charts (loved => popular, posted => popular/artists) on their own
+        GET method
+
+        Args:
+            REQUIRED:
+
+            Optional:
+            - string q: a string to search for
+            - string sort: sort chronologically, by number of favorites or number of blog posts (default is 'latest', must be combined with 'q' otherwise)
+                allowable values: latest, loved, posted
+            - int page: the page of the collection
+            - int count: items per page
+            - string hm_token: user token from /signup or /get_token
+
+        Returns JSON of response.
+        """
+
+        assert str(sort) in ['latest', 'loved', 'posted'], '"sort" must be latest or loved or posted'
+
+        query_string = '/tracks?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def item(self, itemid, hm_token=None):
+        """Single track
+        Single track
+        GET method
+
+        Args:
+            REQUIRED:
+            - string itemid: id of item
+            Optional:
+            - string hm_token: user token from /signup or /get_token
+
+        Returns JSON of response.
+        """
+
+        query_string = '/tracks/' + str(itemid) + '?'
+        query_string += self._parse_params(locals().copy(), ['itemid'])
+        return self._get(query_string)
+
+    def item_blogs(self, itemid, hm_token=None):
+        """Posting blogs
+        Blogs that posted this track
+        GET method
+
+        Args:
+            REQUIRED:
+            - string itemid: id of item
+            Optional:
+            - string hm_token: user token from /signup or /get_token
+
+        Returns JSON of response.
+        """
+
+        query_string = '/tracks/' + str(itemid) + '/blogs?'
+        query_string += self._parse_params(locals().copy(), ['itemid'])
+        return self._get(query_string)
+
+    def item_users(self, itemid, hm_token=None):
+        """Favoriting Users
+        Users that favorited this track
+        GET method
+
+        Args:
+            REQUIRED:
+            - string itemid: id of item
+            Optional:
+            - string hm_token: user token from /signup or /get_token
+
+        Returns JSON of response.
+        """
+
+        query_string = '/tracks/' + str(itemid) + '/users?'
+        query_string += self._parse_params(locals().copy(), ['itemid'])
+        return self._get(query_string)
+
+    def popular(self, mode='now', page=None, count=None, hm_token=None):
+        """Popular tracks
+        Various popular charts: 3 day top 50 ('now'), calendar last week ('lastweek'), remixes excluded or remixes only. Aliased as /tracks?sort=popular for ontological consistency
+        GET method
+
+        Args:
+            REQUIRED:
+
+            Optional:
+            - string mode: Type of popular chart to display (default is 'now')
+                allowable values: now, lastweek, noremix, remix
+            - int page: the page of the collection
+            - int count: items per page
+            - string hm_token: user token from /signup or /get_token
+
+        Returns JSON of response.
+        """
+
+        assert str(mode) in ['now', 'lastweek', 'noremix', 'remix'], '"mode" must be now or lastweek or noremix or remix'
+
+        query_string = '/popular?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    ''' /users '''
+
+    def search_users(self, q=None, hm_token=None):
+        """Search users
+        Does not return anything without a query param
+        GET method
+
+        Args:
+            REQUIRED:
+
+            Optional:
+            - string q: the username
+            - string hm_token: user token from /signup or /get_token
+
+        Returns JSON of response.
+        """
+
+        query_string = '/users?'
+        query_string += self._parse_params(locals().copy(), [])
+        return self._get(query_string)
+
+    def get_user(self, username, hm_token=None):
+        """Get user metadata
+        Get user information like url, number of subscribers, etc
+        GET method
+
+        Args:
+            REQUIRED:
+            - string username: the username
+            Optional:
+            - string hm_token: user token from /signup or /get_token
+
+        Returns JSON of response.
+        """
+
+        query_string = '/users/' + str(username) + '?'
+        query_string += self._parse_params(locals().copy(), ['username'])
+        return self._get(query_string)
+
+    def get_user_tracks(self, username, page=None, count=None, hm_token=None):
+        """Get the user's favorites
+
+        GET method
+
+        Args:
+            REQUIRED:
+            - string username: the username
+            Optional:
+            - int page: the page of the collection
+            - int count: items per page
+            - string hm_token: user token from /signup or /get_token
+
+        Returns JSON of response.
+        """
+
+        query_string = '/users/' + str(username) + '/favorites?'
+        query_string += self._parse_params(locals().copy(), ['username'])
+        return self._get(query_string)
+
+    def playlis(self, username, playlist_id, page=None, count=None):
+        """Get items in the user's playlist
+
+        GET method
+
+        Args:
+            REQUIRED:
+            - string username: the username
             - int playlist_id: id of playlist
-            '''
+                allowable values: 0, 1, 2
+            Optional:
+            - int page: the page of the collection
+            - int count: items per page
 
-        if not hm_token:
-            hm_token = self.hm_token
-        assert hm_token, 'Post methods require a valid hm_token'
-        assert playlist_id in (0, 1, 2), '"Playlist_id" must be 0, 1, or 2'
-        endpoint = 'me/playlists/' + str(playlist_id) + '?hm_token=' + hm_token
-        payload = {}
-        payload['itemid'] = itemid
-        payload['playlist_id'] = playlist_id
-        return self._post(endpoint, payload)
+        Returns JSON of response.
+        """
 
-    def add_to_history(self, itemid, pos=0, hm_token=None, ts=None, type='listen'):
-        '''Add user action to history.
-        Log an action to site history, currently only listen events but
-        eventually other types
-        Returns status
+        assert str(playlist_id) in ['0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
 
-        Args: TODO'''
-        if not hm_token:
-            hm_token = self.hm_token
-        assert hm_token, 'Post methods require a valid hm_token'
-        assert type == 'listen', '"Type" must currently be "listen"'
-        endpoint = 'me/history?hm_token=' + hm_token
-        payload = {}
-        payload['itemid'] = itemid
-        payload['pos'] = pos
-        payload['type'] = type
-        if ts:
-            payload['ts'] = ts
-        return self._post(endpoint, payload)
+        query_string = '/user/' + str(username) + '/playlists/' + str(playlist_id) + '?'
+        query_string += self._parse_params(locals().copy(), ['username', 'playlist_id'])
+        return self._get(query_string)
 
-    def reset_feed_count(self, hm_token=None):
-        '''Reset number of "unread" items in my feed to zero
-        Returns status'''
-        if not hm_token:
-            hm_token = self.hm_token
-        assert hm_token, 'Post methods require a valid hm_token'
-        endpoint = 'me/feed/count?hm_token=' + hm_token
-        return self._post(endpoint, {})
+    def get_user_history(self, username, page=None, count=None, hm_token=None):
+        """Get the user's play history
 
-    def forgot_password(self, username):
-        '''Request password reset email'''
-        endpoint = 'forgot_password'
-        payload = {}
-        payload['username'] = username
-        return self._post(endpoint, payload)
+        GET method
 
-    def connect(self, hm_token=None, fb_uid=None, fb_oauth_token=None, tw_oauth_token=None, tw_oauth_token_secret=None):
-        '''Connect existing Hype Machine account with an external service
-        (Twitter, Facebook, etc)'''
-        if not hm_token:
-            hm_token = self.hm_token
-        assert hm_token, 'Post methods require a valid hm_token'
-        assert any(fb_uid, fb_oauth_token, tw_oauth_token,
-                   tw_oauth_token_secret), 'Must provide at least one valid token'
-        if tw_oauth_token or tw_oauth_token_secret:
-            assert tw_oauth_token and tw_oauth_token_secret, 'Must provide both twitter token and secret'
-        '''Should this assert both fb_uid and fb_oauth_token as well?? Not sure'''
-        endpoint = 'connect?hm_token=' + hm_token
-        payload = {}
-        if fb_uid:
-            payload['fb_uid'] = fb_uid
-        if fb_oauth_token:
-            payload['fb_oauth_token'] = fb_oauth_token
-        if tw_oauth_token:
-            payload['tw_oauth_token'] = tw_oauth_token
-            payload['tw_oauth_token_secret'] = tw_oauth_token_secret
-        return self._post(endpoint, payload)
+        Args:
+            REQUIRED:
+            - string username: the username
+            Optional:
+            - int page: the page of the collection
+            - int count: items per page
+            - string hm_token: user token from /signup or /get_token
 
-    def disconnect(self, type, hm_token=None):
-        '''Disconnects a previously connected account.
-        Does not verify connection prior to removal.'''
-        if not hm_token:
-            hm_token = self.hm_token
-        assert hm_token, 'Post methods require a valid hm_token'
-        assert type in ('fb', 'tw'), '"Type" must be "fb" or "tw"'
-        endpoint = 'disconnect?hm_token=' + hm_token
-        payload = {}
-        payload['type'] = type
-        return self._post(endpoint, payload)
+        Returns JSON of response.
+        """
 
-    def signup(self, username, email, password, newsletter,
-               fb_uid=None, fb_oauth_token=None, tw_oauth_token=None,
-               tw_oauth_token_secret=None):
-        '''Create account
-        This requires a resonably unique device_id. Returns an hm_token upon
-        success, which you can pass as a query parameter to all other endpoints
-        to auth your account. Optionally accepts facebook and twitter tokens to
-        connect those accounts.'''
-        endpoint = 'signup'
-        device_id = uuid.uuid4()
-        payload = {}
-        payload['username'] = username
-        payload['email'] = email
-        payload['password'] = password
-        payload['newsletter'] = newsletter
-        payload['device_id'] = device_id
-        if fb_uid:
-            payload['fb_uid'] = fb_uid
-        if fb_oauth_token:
-            payload['fb_oauth_token'] = fb_oauth_token
-        if tw_oauth_token:
-            payload['tw_oauth_token'] = tw_oauth_token
-            payload['tw_oauth_token_secret'] = tw_oauth_token_secret
-        return self._post(endpoint, payload)
+        query_string = '/users/' + str(username) + '/history?'
+        query_string += self._parse_params(locals().copy(), ['username'])
+        return self._get(query_string)
 
-    '''DELETE methods'''
+    def get_user_friends(self, username, hm_token=None, count=None, page=None):
+        """Get the user's friends
+        Not paginated by default, but accepts page and count parameters as normal
+        GET method
 
-    def remove_item_from_playlist(self, itemid, hm_token=None, playlist_id=0):
-        '''Removes an item from a playlist.
-        Returns 1 or 0, reflecting success and failure, respectively. Will NOT
-        remove item from favorites'''
-        if not hm_token:
-            hm_token = self.hm_token
-        assert hm_token, 'Post methods require a valid hm_token'
-        assert playlist_id in (0, 1, 2), '"Playlist_id" must be 0, 1, or 2'
-        endpoint = 'me/playlists/' + str(playlist_id) + '/items/' + itemid + \
-            '?hm_token=' + hm_token
-        payload = {}
-        payload['itemid'] = itemid
-        return self._delete(endpoint, payload)
+        Args:
+            REQUIRED:
+            - string username: the username
+            Optional:
+            - string hm_token: user token from /signup or /get_token
+            - int count: items per page
+            - int page: the page of the collection
+
+        Returns JSON of response.
+        """
+
+        query_string = '/users/' + str(username) + '/friends?'
+        query_string += self._parse_params(locals().copy(), ['username'])
+        return self._get(query_string)
