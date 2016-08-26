@@ -3,7 +3,7 @@
 This is a python wrapper for the public HypeMachine API, as documented here: <https://api.hypem.com/api-docs/>
 
 This wrapper implements all endpoints listed. Documentation is provided in the form of docstrings, as documented by HypeM. Functions are named after their `nicknames` in the documentation (which aren't always good). Assertion statements give helpful errors for parameters that only take certain values.  
-These methods are largely generated programmatically from the raw json provided on the site, with a couple manual assertion statements.
+These methods are largely generated programmatically from the raw json provided on the site, with a couple manual assertion statements.  
 
 # Getting Started
 
@@ -35,7 +35,9 @@ Methods that don't modify an account directly are unauthenticated.
 # list of blogs with metadata currently indexed by Hypem
 >>> hm.get_blog_tracks(hm.test_blog)
 # list of tracks for When The Horn Blows
-```
+```  
+
+Default `count` is `20`.  
 
 # Issues
 The HypeM backend is a little temperamental, so don't try to load too many anything with `count` >6000, otherwise you should probably expect an error. Just use a smaller `count` with more `pages`.  
