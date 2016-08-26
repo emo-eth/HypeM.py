@@ -55,4 +55,5 @@
         payload = self._parse_payload(locals().copy(), [])
         endpoint = '/signup'  # defined after payload bc of locals() call
 
-        return self._post(endpoint, payload)
+        self.hm_token = self._post(endpoint, payload)
+        return self.hm_token
