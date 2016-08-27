@@ -55,21 +55,20 @@ class HypeM(object):
         Returns JSON response.
 
         Args:
-            - string qstring: string for API query without auth key
-            - string hm_token: user token (or True if using self.hm_token)
-            - function requests_fn: appropriate function from the requests
-                library (GET, POST, DELETE)'''
+            - string qstring: string for API query without auth key'''
         qstring += self._key
         response = requests.get(self._api + qstring, headers=self.headers)
         self._check_status(response)
         return json.loads(response.text)
 
     def _post(self, endpoint, payload):
+        payload['key'] = self._auth
         response = requests.post(self._api + endpoint, data=payload)
         self._check_status(response)
         return json.loads(response.text)
 
     def _delete(self, endpoint, payload):
+        payload['key'] = self._auth
         response = requests.delete(self._api + endpoint, data=payload)
         self._check_status(response)
         return json.loads(response.text)
@@ -106,13 +105,16 @@ class HypeM(object):
             return ''
 
     def _assert_hm_token(self, hm_token):
+        '''Falls back to the object's hm_token if necessary, and and raises an
+        assertion error if there is no token. Used for endpoints that require
+        a valid hm_token.'''
         if not hm_token:
             hm_token = self.hm_token
         assert hm_token, 'Post methods require a valid hm_token'
         return hm_token
 
     def _check_status(self, response):
-        '''Saves a bit of typing'''
+        '''Checks response status and raises errors accordingly'''
         sc = response.status_code
         # 2xx statuses are all success
         if sc // 100 == 2:
@@ -127,7 +129,8 @@ class HypeM(object):
             raise ValueError('Status code unhandled: ' +
                              str(sc) + ' for URL ' + response.url)
 
-    def get_own_auth(self):
+    def get_session_auth(self):
+        '''Gets a session auth key from the HypeM website cookies'''
         req = requests.get('http://hypem.com', headers=self.headers)
         if req.status_code == 200:
             # it's, uh, either index 1 or 3..?
@@ -995,3 +998,29 @@ class HypeM(object):
         query_string = '/users/' + str(username) + '/friends?'
         query_string += self._parse_params(locals().copy(), ['username'])
         return self._get(query_string)
+
+    ''' Renamed methods '''
+
+    get_popular_artists = popular_artists
+    get_artist = get_artist_info
+    get_blogs = list_blogs
+    get_blogs_count = list_blogs_count
+    get_blog = get_site_info
+    get_featured = featured
+    get_my_favorites = favorites_me
+    favorite_track = toggle_favorite
+    get_my_playlist = playlist_me
+    add_to_playlist = add_playlist
+    remove_from_playlist = remove_playlist
+    get_my_history = history_me
+    get_my_friends = friends_me
+    get_my_feed = feed
+    get_my_unread = feed_count
+    reset_my_unread = reset_feed_count
+    get_tags = list_tags
+    get_tracks = latest
+    get_track = item
+    get_track_blogs = item_blogs
+    get_track_favorites = item_users
+    get_popular = popular
+    get_user_playlist = playlis
