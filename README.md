@@ -2,7 +2,7 @@
 
 This is a python wrapper for the public HypeMachine API, as documented here: <https://api.hypem.com/api-docs/>
 
-This wrapper implements all endpoints listed. Documentation is provided in the form of docstrings, as documented by HypeM. Functions are named after their `nicknames` in the documentation (which aren't always good). Assertion statements give helpful errors for parameters that only take certain values.  
+This wrapper implements all endpoints listed. Documentation is provided in the form of docstrings, as documented by HypeM. Functions are named after their `nicknames` in the documentation. The nickanmes aren't always good, so more useful names have been added as aliases. Assertion statements give helpful errors for parameters that only take certain values.  
 These methods are largely generated programmatically from the raw json provided on the site, with a couple manual assertion statements.  
 
 # Getting Started
@@ -39,8 +39,40 @@ Methods that don't modify an account directly are unauthenticated.
 
 Default `count` is `20`.  
 
+# Aliases
+
+HypeM Nicknames for operations can be terrible. Here are the aliases I've added manually:  
+(Note: These are not all methods available, just the ones whose names weren't very informative)
+
+
+```
+get_popular_artists = popular_artists
+get_artist = get_artist_info
+get_blogs = list_blogs
+get_blogs_count = list_blogs_count
+get_blog = get_site_info
+get_featured = featured
+get_my_favorites = favorites_me
+favorite_track = toggle_favorite
+get_my_playlist = playlist_me
+add_to_playlist = add_playlist
+remove_from_playlist = remove_playlist
+get_my_history = history_me
+get_my_friends = friends_me
+get_my_feed = feed
+get_my_unread = feed_count
+reset_my_unread = reset_feed_count
+get_tags = list_tags
+get_tracks = latest
+get_track = item
+get_track_blogs = item_blogs
+get_track_favorites = item_users
+get_popular = popular
+get_user_playlist = playlis  # I think they forgot to finish writing this one
+```
+
 # Issues
-The HypeM backend is a little temperamental, so don't try to load too many anything with `count` >6000, otherwise you should probably expect an error. Just use a smaller `count` with more `pages`.  
+The HypeM backend is a little temperamental, so don't try to load too many things with `count` >~6000, otherwise you should probably expect an error. Just use a smaller `count` with more `pages`.  
 It also can be inconsistent, e.g. the `total_tracks` listed for a blog in `get_site_info` isn't necessarily correct (in the case of Indie Shuffle, it can be wrong by thousands).  
 
 I'm pretty sure `get_tag_info` isn't a real function, since in the documentation, it's exacly the same as `get_site_info` (name + description included). That, and it doesn't work.  
