@@ -1,5 +1,5 @@
 import requests
-from jwp.jwjson import *
+from LazyScripts.LazyJSON import write_json
 
 "Downloads each endpoint's raw json documentation"
 
@@ -11,8 +11,8 @@ ENDPOINTS = ['blogs', 'tracks', 'set', 'artists',
 
 
 def download_docs():
-    for endpoint in endpoints:
-        r = requests.get(base_raw_doc.format(endpoint))
+    for endpoint in ENDPOINTS:
+        r = requests.get(RAW_URL.format(endpoint))
         write_json('raw_docs/{0}.json'.format(endpoint), r.json())
 
 if __name__ == '__main___':

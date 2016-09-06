@@ -2,6 +2,7 @@ import requests
 import json
 import uuid
 import warnings
+from bs4 import BeautifulSoup
 
 
 class RateLimitError(Exception):
@@ -27,6 +28,7 @@ class HypeM(object):
     test_blog = 22830
     test_artist = 'ratherbright'
     test_tag = 'indie'
+    session = requests.Session()
 
     def __init__(self, username=None, password=None, auth=None, hm_token=None):
         if username:
@@ -998,6 +1000,35 @@ class HypeM(object):
         query_string = '/users/' + str(username) + '/friends?'
         query_string += self._parse_params(locals().copy(), ['username'])
         return self._get(query_string)
+
+    ''' scrape '''
+
+    def _get_soup(self, url):
+        '''Returns a BeautifulSoup object for a given URL'''
+        req = self.session.get(url)
+        self._check_status(req)
+        return BeautifulSoup(req.text, 'lxml')
+
+    def get_track_tags(self, track_id):
+        '''Scrapes the genres a song has been tagged with, if available
+
+        Args:
+            - string track_id: track id of the song on HypeM
+
+        Returns:
+            - list of genre tags'''
+
+        # sets are not json-serializable, so use a list instead
+        genre_tags = []
+        soup = self._get_soup('http://hypem.com/track/' + track_id)
+        tag_box = soup.find('ul', 'tags')
+        if not tag_box:
+            return genre_tags
+        tags = tag_box.find_all('li')
+        if tags:
+            for tag in tags:
+                genre_tags.append(tag.text)
+        return genre_tags
 
     ''' Renamed methods '''
 

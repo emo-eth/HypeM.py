@@ -1,6 +1,6 @@
 import glob
 import re
-from jwp.jwjson import *
+from LazyScripts.LazyJSON import read_json
 
 # string to format for GET methods
 GET_METHOD_STR = '''
