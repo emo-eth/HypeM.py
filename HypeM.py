@@ -28,7 +28,6 @@ class HypeM(object):
     test_blog = 22830
     test_artist = 'ratherbright'
     test_tag = 'indie'
-    session = requests.Session()
 
     def __init__(self, username=None, password=None, auth=None, hm_token=None):
         if username:
@@ -43,6 +42,8 @@ class HypeM(object):
                     username=username, password=password)
         if auth:
             self._auth = auth
+        self.session = requests.Session()
+        self.session.headers = self.headers
 
     '''Helper properties and methods'''
 
@@ -1001,7 +1002,7 @@ class HypeM(object):
         query_string += self._parse_params(locals().copy(), ['username'])
         return self._get(query_string)
 
-    ''' scrape '''
+    ''' scraping methods... please be nice to their servers '''
 
     def _get_soup(self, url):
         '''Returns a BeautifulSoup object for a given URL'''
@@ -1010,15 +1011,13 @@ class HypeM(object):
         return BeautifulSoup(req.text, 'lxml')
 
     def get_track_tags(self, track_id):
-        '''Scrapes the genres a song has been tagged with, if available
+        '''Scrapes the tags for a given, if any
 
         Args:
             - string track_id: track id of the song on HypeM
 
-        Returns:
-            - list of genre tags'''
+        Returns list of genre tags.'''
 
-        # sets are not json-serializable, so use a list instead
         genre_tags = []
         soup = self._get_soup('http://hypem.com/track/' + track_id)
         tag_box = soup.find('ul', 'tags')
@@ -1030,7 +1029,39 @@ class HypeM(object):
                 genre_tags.append(tag.text)
         return genre_tags
 
-    ''' Renamed methods '''
+    def get_track_stream(self, track_id):
+        '''Scrapes the link to the raw mp3 of a track.
+
+        Args:
+            - string track_id: the track_id of the song
+
+        Returns url to mp3 stream'''
+
+        soup = self._get_soup('http://hypem.com/track/' + track_id)
+        display_list = soup.find(id='displayList-data')
+        if display_list is None:
+            # if there is no display list, return empty string
+            return ''
+        # load the display_list variable as json, and get 1st element
+        # (there may be more elements in display_list, but 1st should
+        # be the specified track)
+        track_list = json.loads(display_list.text)
+        track_json = track_list['tracks'][0]
+        key = track_json['key']
+        id_ = track_json['id']
+        type_ = track_json['type']
+        if not type_:
+            # type_ is false if stream no longer available
+            return ''
+        # get hypem to serve stream url
+        serve_url = 'http://hypem.com/serve/source/{}/{}'.format(id_, key)
+        song_data_response = self.session.get(serve_url,
+                                              headers={'Content-Type':
+                                                       'application/json'})
+        song_data = json.loads(song_data_response.text)
+        return song_data.get('url')
+
+    ''' Aliases: renamed methods '''
 
     get_popular_artists = popular_artists
     get_artist = get_artist_info
