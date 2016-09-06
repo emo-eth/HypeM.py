@@ -218,7 +218,10 @@ class HypeM(object):
 
     def list_blogs(self, hydrate=None, page=None, count=None, hm_token=None):
         """List all blogs
-        Lists all blogs currently tracked by Hype Machine. Not paginated by default, but accepts page and count parameters as normal (recommended if hydrated). Pass hydrate=1 to get a sub-list of recently posted artists, and possibly other metadata
+        Lists all blogs currently tracked by Hype Machine. Not paginated by
+        default, but accepts page and count parameters as normal (recommended
+        if hydrated). Pass hydrate=1 to get a sub-list of recently posted
+        artists, and possibly other metadata
         GET method
 
         Args:
@@ -297,7 +300,8 @@ class HypeM(object):
 
     def featured(self, type='all', page=None, count=None, hm_token=None):
         """Get featured things, interleaved or separated
-        count and page are only meaningful in 'premieres' mode, otherwise we serve 6 pemieres and 1 site, in chronological order
+        count and page are only meaningful in 'premieres' mode, otherwise we
+        serve 6 pemieres and 1 site, in chronological order
         GET method
 
         Args:
@@ -313,7 +317,8 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        assert str(type) in ['premieres', 'all'], '"type" must be premieres or all'
+        assert str(type) in ['premieres', 'all'], ('"type" must be premieres'
+                                                   'or all')
 
         query_string = '/featured?'
         query_string += self._parse_params(locals().copy(), [])
@@ -343,7 +348,8 @@ class HypeM(object):
 
     def toggle_favorite(self, type, val, hm_token=None):
         """Add to favorites
-        Returns 1 or 0, reflecting the final state of the item (1 is favorite, 0 is not)
+        Returns 1 or 0, reflecting the final state of the item (1 is favorite,
+        0 is not)
         POST method
 
         Args:
@@ -358,7 +364,8 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(type) in ['item', 'site', 'user'], '"type" must be item or site or user'
+        assert str(type) in ['item', 'site', 'user'], ('"type" must be item or'
+                                                       'site or user')
 
         payload = self._parse_payload(locals().copy(), [])
         endpoint = '/me/favorites'  # defined after payload bc of locals() call
@@ -382,7 +389,8 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(playlist_id) in ['0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
+        assert str(playlist_id) in ['0', '1', '2'], ('"playlist_id" must be 0 '
+                                                     'or 1 or 2')
 
         query_string = '/me/playlists/' + str(playlist_id) + '?'
         query_string += self._parse_params(locals().copy(), ['playlist_id'])
@@ -390,7 +398,8 @@ class HypeM(object):
 
     def add_playlist(self, playlist_id, itemid, hm_token=None):
         """Add item to playlist
-        Returns 1 or 0, reflecting success and failure, respectively. Will also add item to favorites, if not already present there
+        Returns 1 or 0, reflecting success and failure, respectively. Will
+        also add item to favorites, if not already present there
         POST method
 
         Args:
@@ -405,16 +414,19 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(playlist_id) in ['0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
+        assert str(playlist_id) in ['0', '1', '2'], ('"playlist_id" must be 0 '
+                                                     'or 1 or 2')
 
         payload = self._parse_payload(locals().copy(), ['playlist_id'])
-        endpoint = '/me/playlists/' + str(playlist_id) + ''  # defined after payload bc of locals() call
+        endpoint = '/me/playlists/' + str(playlist_id) + ''
+        # defined afterpayload bc of locals() call
 
         return self._post(endpoint, payload)
 
     def remove_playlist(self, playlist_id, itemid, hm_token=None):
         """Remove item from playlist
-        Returns 1 or 0, reflecting success and failure, respectively. Will NOT remove item from favorites
+        Returns 1 or 0, reflecting success and failure, respectively. Will NOT
+        remove item from favorites
         DELETE method
 
         Args:
@@ -429,10 +441,14 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(playlist_id) in ['0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
+        assert str(playlist_id) in ['0', '1', '2'], ('"playlist_id" must be 0 '
+                                                     'or 1 or 2')
 
-        payload = self._parse_payload(locals().copy(), ['playlist_id', 'itemid'])
-        endpoint = '/me/playlists/' + str(playlist_id) + '/items/' + str(itemid) + ''  # defined after payload bc of locals() call
+        payload = self._parse_payload(locals().copy(), ['playlist_id',
+                                                        'itemid'])
+        endpoint = ('/me/playlists/' + str(playlist_id) + '/items/' +
+                    str(itemid) + '')
+        # defined after payload bc of locals() call
 
         return self._delete(endpoint, payload)
 
@@ -445,7 +461,8 @@ class HypeM(object):
             REQUIRED:
             - string hm_token: user token from /signup or /get_token
             Optional:
-            - string sort: sort chronologically or by frequency of recent listening (default is 'latest')
+            - string sort: sort chronologically or by frequency of recent
+            listening (default is 'latest')
                 allowable values: latest, obsessed
             - int page: the page of the collection
             - int count: items per page
@@ -453,7 +470,8 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(sort) in ['latest', 'obsessed'], '"sort" must be latest or obsessed'
+        assert str(sort) in ['latest', 'obsessed'], ('"sort" must be latest or'
+                                                     ' obsessed')
 
         query_string = '/me/history?'
         query_string += self._parse_params(locals().copy(), [])
@@ -461,18 +479,22 @@ class HypeM(object):
 
     def log_user_action(self, type, itemid, pos, hm_token=None, ts=None):
         """Add user action to history
-        Log an action to site history, currently only listen events but eventually other types
+        Log an action to site history, currently only listen events but
+        eventually other types
         POST method
 
         Args:
             REQUIRED:
             - string type: type of action to add
                 allowable values: listen
-            - string itemid: id of resource for action (for items only currently)
-            - int pos: playback head position (must be < 45 to show in site history)
+            - string itemid: id of resource for action (for items only
+                currently)
+            - int pos: playback head position (must be < 45 to show in site
+                history)
             - string hm_token: user token from /signup or /get_token
             Optional:
-            - int ts: timestamp of action, defaults to now (you can provide past timestamps for offline plays)
+            - int ts: timestamp of action, defaults to now (you can provide
+                past timestamps for offline plays)
 
         Returns JSON of response.
         """
@@ -486,7 +508,8 @@ class HypeM(object):
 
     def friends_me(self, hm_token=None, count=None, page=None):
         """Get my friends
-        Not paginated by default, but accepts page and count parameters as normal
+        Not paginated by default, but accepts page and count parameters as
+        normal
         GET method
 
         Args:
@@ -519,7 +542,8 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(mode) in ['blogs', 'artists', 'friends', 'all'], '"mode" must be blogs or artists or friends or all'
+        assert str(mode) in ['blogs', 'artists', 'friends', 'all'], (
+            '"mode" ''must be blogs or artists or friends or all')
 
         query_string = '/me/feed?'
         query_string += self._parse_params(locals().copy(), [])
@@ -560,7 +584,8 @@ class HypeM(object):
         hm_token = self._assert_hm_token(hm_token)
 
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/me/feed/count'  # defined after payload bc of locals() call
+        endpoint = '/me/feed/count'
+        # defined after payload bc of locals() call
 
         return self._post(endpoint, payload)
 
@@ -581,13 +606,18 @@ class HypeM(object):
         """
 
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/forgot_password'  # defined after payload bc of locals() call
+        endpoint = '/forgot_password'
+        # defined after payload bc of locals() call
 
         return self._post(endpoint, payload)
 
-    def connect(self, hm_token=None, fb_uid=None, fb_oauth_token=None, tw_oauth_token=None, tw_oauth_token_secret=None):
-        """Connect existing Hype Machine account with an external service (Twitter, Facebook, etc)
-        At least one external service token is required. To use this for 3rd party signup, try to log in with those credential first, then get hm_token and post it here with the 3rd party info
+    def connect(self, hm_token=None, fb_uid=None, fb_oauth_token=None,
+                tw_oauth_token=None, tw_oauth_token_secret=None):
+        """Connect existing Hype Machine account with an external service
+        (Twitter, Facebook, etc)
+        At least one external service token is required. To use this for 3rd
+        party signup, try to log in with those credential first, then get
+        hm_token and post it here with the 3rd party info
         POST method
 
         Args:
@@ -595,7 +625,8 @@ class HypeM(object):
             - string hm_token: user token from /signup or /get_token
             Optional:
             - string fb_uid: a facebook API uid
-            - string fb_oauth_token: a facebook API auth token (must be currently valid)
+            - string fb_oauth_token: a facebook API auth token (must be
+                currently valid)
             - string tw_oauth_token: a twitter API token secret
             - string tw_oauth_token_secret: a twitter API token
 
@@ -603,9 +634,11 @@ class HypeM(object):
         """
         hm_token = self._assert_hm_token(hm_token)
         assert any(fb_uid, fb_oauth_token, tw_oauth_token,
-                   tw_oauth_token_secret), 'Must provide at least one valid token'
+                   tw_oauth_token_secret), (
+                   'Must provide at least one valid token')
         if tw_oauth_token or tw_oauth_token_secret:
-            assert tw_oauth_token and tw_oauth_token_secret, 'Must provide both twitter token and secret'
+            assert tw_oauth_token and tw_oauth_token_secret, (
+                'Must provide both twitter token and secret')
 
         payload = self._parse_payload(locals().copy(), [])
         endpoint = '/connect'  # defined after payload bc of locals() call
@@ -614,7 +647,8 @@ class HypeM(object):
 
     def disconnect(self, type, hm_token=None):
         """Disconnect an external service account
-        Disconnects a previously connected account. Does not verify connection prior to removal.
+        Disconnects a previously connected account. Does not verify connection
+        prior to removal.
         POST method
 
         Args:
@@ -635,9 +669,14 @@ class HypeM(object):
 
         return self._post(endpoint, payload)
 
-    def signup(self, username, email, password, newsletter, device_id=None, fb_uid=None, fb_oauth_token=None, tw_oauth_token=None, tw_oauth_token_secret=None):
+    def signup(self, username, email, password, newsletter, device_id=None,
+               fb_uid=None, fb_oauth_token=None, tw_oauth_token=None,
+               tw_oauth_token_secret=None):
         """Create account
-        This requires a resonably unique device_id. Returns an hm_token upon success, which you can pass as a query parameter to all other endpoints to auth your account. Optionally accepts facebook and twitter tokens to connect those accounts.
+        This requires a resonably unique device_id. Returns an hm_token upon
+        success, which you can pass as a query parameter to all other
+        endpoints to auth your account. Optionally accepts facebook and twitter
+        tokens to connect those accounts.
         POST method
 
         Args:
@@ -646,10 +685,12 @@ class HypeM(object):
             - string email: email address
             - string password: desired password
             - bool newsletter: receive newsletter?
-            - hex device_id: exactly 16 hex characters (128 bits) uniquely identifying the client device
+            - hex device_id: exactly 16 hex characters (128 bits) uniquely
+            identifying the client device
             Optional:
             - string fb_uid: a facebook API uid
-            - string fb_oauth_token: a facebook API auth token (must be currently valid)
+            - string fb_oauth_token: a facebook API auth token (must be
+                currently valid)
             - string tw_oauth_token: a twitter API token secret
             - string tw_oauth_token_secret: a twitter API token
 
@@ -667,18 +708,18 @@ class HypeM(object):
     def get_token(self, username=None, password=None, fb_oauth_token=None,
                   tw_oauth_token=None, tw_oauth_token_secret=None):
         """Obtain an auth token
-        Returns an hm_token like /signup. You must use this token to authenticate
-        all requests for a logged-in user. Requires username and password OR fb
-        token OR twitter token and secret (accounts must be connected via website
-        first)
+        Returns an hm_token like /signup. You must use this token to
+        authenticate all requests for a logged-in user. Requires username and
+        password OR fb token OR twitter token and secret (accounts must be
+        connected via website first)
         POST method
 
         Args:
             REQUIRED:
             - string username: username
             - string password: password
-            - string fb_oauth_token: a facebook API auth token (must be currently
-                valid)
+            - string fb_oauth_token: a facebook API auth token (must be
+            currently valid)
             - string tw_oauth_token: a twitter API token secret
             - string tw_oauth_token_secret: a twitter API token
             Optional:
@@ -705,7 +746,8 @@ class HypeM(object):
             REQUIRED:
             - string setname: A short name of the set, for example 'test'
             Optional:
-            - string hm_token: user token from /signup or /get_token, pass to include user's favorite information in result set
+            - string hm_token: user token from /signup or /get_token, pass to
+                include user's favorite information in result set
 
         Returns JSON of response.
         """
@@ -725,7 +767,8 @@ class HypeM(object):
             REQUIRED:
 
             Optional:
-            - string hm_token: user token from /signup or /get_token, pass to include user's favorite information in result set
+            - string hm_token: user token from /signup or /get_token, pass to
+                include user's favorite information in result set
 
         Returns JSON of response.
         """
@@ -743,7 +786,8 @@ class HypeM(object):
             REQUIRED:
             - string tag: the genere tag
             Optional:
-            - string hm_token: user token from /signup or /get_token, pass to include user's favorite information in result set
+            - string hm_token: user token from /signup or /get_token, pass to
+                include user's favorite information in result set
 
         Returns JSON of response.
         """
@@ -753,7 +797,8 @@ class HypeM(object):
         query_string += self._parse_params(locals().copy(), ['tag'])
         return self._get(query_string)
 
-    def get_tag_tracks(self, tag, fav_from=None, fav_to=None, page=None, count=None, hm_token=None):
+    def get_tag_tracks(self, tag, fav_from=None, fav_to=None, page=None,
+                       count=None, hm_token=None):
         """Get latest tracks for the tag
 
         GET method
@@ -766,7 +811,8 @@ class HypeM(object):
             - int fav_to: maximum favorite count
             - int page: the page of the collection
             - int count: items per page
-            - string hm_token: user token from /signup or /get_token, pass to include user's favorite information in result set
+            - string hm_token: user token from /signup or /get_token, pass to
+                include user's favorite information in result set
 
         Returns JSON of response.
         """
@@ -777,9 +823,14 @@ class HypeM(object):
 
     ''' /tracks '''
 
-    def latest(self, q=None, sort='latest', page=None, count=None, hm_token=None):
+    def latest(self, q=None, sort='latest', page=None, count=None,
+            hm_token=None):
         """Tracks
-        List of tracks, unfiltered and chronological (equivalent to 'Latest -> All' on the site) by default. Sort options will yield fully sorted result sets when combined with a search parameter (?q=...) or summary charts (loved => popular, posted => popular/artists) on their own
+        List of tracks, unfiltered and chronological (equivalent to
+        'Latest -> All' on the site) by default. Sort options will yield fully
+        sorted result sets when combined with a search parameter (?q=...) or
+        summary charts (loved => popular, posted => popular/artists) on their
+        own
         GET method
 
         Args:
@@ -787,7 +838,9 @@ class HypeM(object):
 
             Optional:
             - string q: a string to search for
-            - string sort: sort chronologically, by number of favorites or number of blog posts (default is 'latest', must be combined with 'q' otherwise)
+            - string sort: sort chronologically, by number of favorites or
+            number of blog posts (default is 'latest', must be combined with
+            'q' otherwise)
                 allowable values: latest, loved, posted
             - int page: the page of the collection
             - int count: items per page
@@ -796,7 +849,8 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        assert str(sort) in ['latest', 'loved', 'posted'], '"sort" must be latest or loved or posted'
+        assert str(sort) in ['latest', 'loved', 'posted'], (
+            '"sort" must be latest or loved or posted')
 
         query_string = '/tracks?'
         query_string += self._parse_params(locals().copy(), [])
@@ -858,7 +912,9 @@ class HypeM(object):
 
     def popular(self, mode='now', page=None, count=None, hm_token=None):
         """Popular tracks
-        Various popular charts: 3 day top 50 ('now'), calendar last week ('lastweek'), remixes excluded or remixes only. Aliased as /tracks?sort=popular for ontological consistency
+        Various popular charts: 3 day top 50 ('now'), calendar last week
+        ('lastweek'), remixes excluded or remixes only. Aliased as
+        /tracks?sort=popular for ontological consistency
         GET method
 
         Args:
@@ -874,7 +930,8 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        assert str(mode) in ['now', 'lastweek', 'noremix', 'remix'], '"mode" must be now or lastweek or noremix or remix'
+        assert str(mode) in ['now', 'lastweek', 'noremix', 'remix'], (
+            '"mode" must be now or lastweek or noremix or remix')
 
         query_string = '/popular?'
         query_string += self._parse_params(locals().copy(), [])
@@ -956,10 +1013,13 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        assert str(playlist_id) in ['0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
+        assert str(playlist_id) in ['0', '1', '2'], (
+            '"playlist_id" must be 0 or 1 or 2')
 
-        query_string = '/user/' + str(username) + '/playlists/' + str(playlist_id) + '?'
-        query_string += self._parse_params(locals().copy(), ['username', 'playlist_id'])
+        query_string = ('/user/' + str(username) + '/playlists/' +
+                        str(playlist_id) + '?')
+        query_string += self._parse_params(locals().copy(),
+                                           ['username', 'playlist_id'])
         return self._get(query_string)
 
     def get_user_history(self, username, page=None, count=None, hm_token=None):
@@ -984,7 +1044,8 @@ class HypeM(object):
 
     def get_user_friends(self, username, hm_token=None, count=None, page=None):
         """Get the user's friends
-        Not paginated by default, but accepts page and count parameters as normal
+        Not paginated by default, but accepts page and count parameters as
+        normal
         GET method
 
         Args:
@@ -1035,6 +1096,8 @@ class HypeM(object):
         Args:
             - string track_id: the track_id of the song
 
+        credit to @fzakaria: https://github.com/fzakaria/HypeScript
+
         Returns url to mp3 stream'''
 
         soup = self._get_soup('http://hypem.com/track/' + track_id)
@@ -1061,7 +1124,7 @@ class HypeM(object):
         song_data = json.loads(song_data_response.text)
         return song_data.get('url')
 
-    ''' Aliases: renamed methods '''
+    ''' Aliases: methods renamed from HypeM nicknames '''
 
     get_popular_artists = popular_artists
     get_artist = get_artist_info
