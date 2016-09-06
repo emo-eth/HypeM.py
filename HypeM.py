@@ -190,7 +190,6 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-
         query_string = '/artists/' + str(artist) + '?'
         query_string += self._parse_params(locals().copy(), ['artist'])
         return self._get(query_string)
@@ -635,7 +634,7 @@ class HypeM(object):
         hm_token = self._assert_hm_token(hm_token)
         assert any(fb_uid, fb_oauth_token, tw_oauth_token,
                    tw_oauth_token_secret), (
-                   'Must provide at least one valid token')
+            'Must provide at least one valid token')
         if tw_oauth_token or tw_oauth_token_secret:
             assert tw_oauth_token and tw_oauth_token_secret, (
                 'Must provide both twitter token and secret')
@@ -792,7 +791,7 @@ class HypeM(object):
         Returns JSON of response.
         """
         warnings.warn("This method doesn't seem to work and is "
-            "incorrectly documented at the source.", RuntimeWarning)
+                      "incorrectly documented at the source.", RuntimeWarning)
         query_string = '/tags/' + str(tag) + '?'
         query_string += self._parse_params(locals().copy(), ['tag'])
         return self._get(query_string)
@@ -824,7 +823,7 @@ class HypeM(object):
     ''' /tracks '''
 
     def latest(self, q=None, sort='latest', page=None, count=None,
-            hm_token=None):
+               hm_token=None):
         """Tracks
         List of tracks, unfiltered and chronological (equivalent to
         'Latest -> All' on the site) by default. Sort options will yield fully
