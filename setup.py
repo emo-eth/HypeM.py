@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 from setuptools import setup
 
 
@@ -10,10 +11,8 @@ def load_version(path):
                 version = line.strip().split('=')[-1][1:-1]
                 return version
 
-try:
-    version = load_version('hypem.py/version.py')
-except:
-    version = load_version('HypeM.py/version.py')
+file_path = os.path.dirname(os.path.abspath(__file__))
+version = load_version(file_path + '/version.py')
 
 setup(name='HypeM.py',
       py_modules=['HypeM'],
