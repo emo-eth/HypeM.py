@@ -80,7 +80,6 @@ class HypeM(object):
         '''Format all params for GET request'''
         query_string = ''
         # remove self since it is superfluous
-        # remove hm_token since that's processed later
         for val in ['self', 'query_string'] + endpoint_args:
             locals_copy.pop(val)
         for param, val in locals_copy.items():

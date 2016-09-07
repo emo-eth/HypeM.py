@@ -1,0 +1,9 @@
+#!/bin/sh
+
+source LazyScripts/version.py
+git commit -m "version update"
+git push origin master
+git tag $__version__
+git push --tags origin master
+python setup.py register -r pypi
+python setup.py sdist upload -r pypi
