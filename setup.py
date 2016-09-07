@@ -24,5 +24,5 @@ setup(name='HypeM.py',
       license='Apache License 2.0',
       keywords=['hypem', 'music', 'hype', 'machine', 'blogs', 'api', 'blog'],
       classifiers=[],
-      install_requires=['requests >= 2.2.1']
+      install_requires=['requests >= 2.2.1', 'beautifulsoup4 >= 4.4.1']
       )
