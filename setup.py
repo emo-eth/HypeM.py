@@ -10,7 +10,10 @@ def load_version(path):
                 version = line.strip().split('=')[-1][1:-1]
                 return version
 
-version = load_version('version.py')
+try:
+    version = load_version('hypem.py/version.py')
+except:
+    version = load_version('HypeM.py/version.py')
 
 setup(name='HypeM.py',
       py_modules=['HypeM'],
