@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-import os
 from setuptools import setup
 
+version = '1.0.2'
 
 setup(name='HypeM.py',
       py_modules=['HypeM'],
-      version='1.0.1',
+      version=version,
       description='Python 3 wrapper for the official HypeMachine API',
       author='James Wenzel',
       author_email='wenzel.james.r@gmail.com',
