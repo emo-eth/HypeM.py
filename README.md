@@ -2,11 +2,16 @@
 
 This is a python wrapper for the public HypeMachine API, as documented here: <https://api.hypem.com/api-docs/>
 
-This wrapper implements all endpoints listed. Documentation is provided in the form of docstrings, as documented by HypeM. Functions are named after their `nicknames` in the documentation. The nickanmes aren't always good, so more useful names have been added as aliases. Assertion statements give helpful errors for parameters that only take certain values.  
+This wrapper implements all endpoints listed. Documentation is provided in the form of docstrings, as documented by HypeM. Functions are named after their `nicknames` in the documentation. The nicknames aren't always good, so more useful names have been added as aliases. Assertion statements give helpful errors for parameters that only take certain values.  
 These methods are largely generated programmatically from the raw json provided on the site, with a couple manual assertion statements.  
 
 # Getting Started
 
+## Installation
+
+Install using `pip install HypeM.py`  
+
+## Usage
 
 For account-authenticated methods, you can pass in a `username`+`password` and/or `hm_token`
 ```
@@ -70,6 +75,13 @@ get_track_favorites = item_users
 get_popular = popular
 get_user_playlist = playlis  # I think they forgot to finish writing this one
 ```
+
+# Unofficial Methods
+
+HypeM.py impelements a couple methods that scrape directly from the HypeM website. As such, be considerate when using them.  
+
+`get_track_tags` gets the tags listed for a given `track_id`.  
+`get_track_stream` gets a direct link to the .mp3 file hosted on (usually) SoundCloud.
 
 # Issues
 The HypeM backend is a little temperamental, so don't try to load too many things with `count` >~6000, otherwise you should probably expect an error. Just use a smaller `count` with more `pages`.  
