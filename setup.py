@@ -4,19 +4,9 @@ import os
 from setuptools import setup
 
 
-def load_version(path):
-    with open(path) as fid:
-        for line in fid:
-            if line.startswith('version'):
-                version = line.strip().split('=')[-1][1:-1]
-                return version
-
-file_path = os.path.dirname(os.path.abspath(__file__))
-version = load_version(file_path + '/version.py')
-
 setup(name='HypeM.py',
       py_modules=['HypeM'],
-      version=version,
+      version='1.0.1',
       description='Python 3 wrapper for the official HypeMachine API',
       author='James Wenzel',
       author_email='wenzel.james.r@gmail.com',
