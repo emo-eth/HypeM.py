@@ -81,7 +81,7 @@ get_user_playlist = playlis  # I think they forgot to finish writing this one
 HypeM.py impelements a couple methods that scrape directly from the HypeM website. As such, be considerate when using them.  
 
 `get_track_tags` gets the tags listed for a given `track_id`.  
-`get_track_stream` gets a direct link to the .mp3 file hosted on (usually) SoundCloud.
+`get_track_stream` gets a direct link to the .mp3 file for a given `track_id` (usually hosted on SoundCloud).
 
 # Issues
 The HypeM backend is a little temperamental, so don't try to load too many things with `count` >~6000, otherwise you should probably expect an error. Just use a smaller `count` with more `pages`.  
