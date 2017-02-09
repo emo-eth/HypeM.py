@@ -1,158 +1,58 @@
-import requests
-import json
 import uuid
 import warnings
+import json
 from bs4 import BeautifulSoup
+from BaseAPI import BaseAPI
 
 
-class RateLimitError(Exception):
-
-    def __init__(self):
-        self.value = '403 Error/Rate Limit Encountered'
-
-
-class APIError(Exception):
-
-    def __init__(self, value):
-        self.value = value
-
-
-class HypeM(object):
-
-    _auth = 'swagger'  # auth doesn't even appear to be necessary
-    _api = 'https://api.hypem.com/v2'
-    headers = {'User-Agent': 'HypeM.py'}
-    hm_token = ''
+class HypeM(BaseAPI):
+    '''Wrapper for the public HypeM RESTful HTTP API'''
+    memo = {}  # used to cache method calls
 
     test_song = '2fv7a'
     test_blog = 22830
     test_artist = 'ratherbright'
     test_tag = 'indie'
 
-    def __init__(self, username=None, password=None, auth=None, hm_token=None):
-        if username:
-            assert password, 'Must pass both username and password'
-        if password:
-            assert username, 'Must pass both username and password'
+    def __init__(self, username=None, password=None,
+                 hm_token=None, payload_auth={'key': 'swagger'},
+                 cache_life=3600):
+        '''
+        Args:
+            Optional:
+            string username: username of account with which to authenticate
+            string password: password of account with which to authenticate
+            string hm_token: hm_token of account with which to authenticate
+            dict payload_auth: dictionary of auth information for calls
+            number cache_life: length of time in seconds that a method call is
+                retrieved from a cache before being retrieved from the server
+                again
+            '''
+        super(HypeM, self).__init__('https://api.hypem.com/v2/',
+                                    payload_auth=payload_auth,
+                                    cache_life=cache_life)
+        if username or password:
+            assert username and password, ('Must pass both username and' +
+                                           ' password')
         if hm_token:
             self.hm_token = hm_token
         else:
-            if username and password:
-                self.hm_token = self.get_token(
-                    username=username, password=password)
-        if auth:
-            self._auth = auth
-        self.session = requests.Session()
-        self.session.headers = self.headers
-
-    '''Helper properties and methods'''
-
-    @property
-    def _key(self):
-        '''API auth key property'''
-        return 'key=' + self._auth
-
-    def _get(self, qstring):
-        '''Handles auth, API query, status checking, and json conversion.
-        May raise an exception depending on response status code.
-        Returns JSON response.
-
-        Args:
-            - string qstring: string for API query without auth key'''
-        qstring += self._key
-        response = requests.get(self._api + qstring, headers=self.headers)
-        self._check_status(response)
-        return json.loads(response.text)
-
-    def _post(self, endpoint, payload):
-        payload['key'] = self._auth
-        response = requests.post(self._api + endpoint, data=payload)
-        self._check_status(response)
-        return json.loads(response.text)
-
-    def _delete(self, endpoint, payload):
-        payload['key'] = self._auth
-        response = requests.delete(self._api + endpoint, data=payload)
-        self._check_status(response)
-        return json.loads(response.text)
-
-    def _parse_params(self, locals_copy, endpoint_args):
-        '''Format all params for GET request'''
-        query_string = ''
-        # remove self since it is superfluous
-        for val in ['self', 'query_string'] + endpoint_args:
-            locals_copy.pop(val)
-        for param, val in locals_copy.items():
-            query_string += self._param(param, val)
-        return query_string
-
-    def _parse_payload(self, locals_copy, endpoint_args):
-        '''Remove self and endpoint args from POST/DELETE payload'''
-        for val in ['self'] + endpoint_args:
-            locals_copy.pop(val)
-        return locals_copy
-
-    def _param(self, param, value):
-        '''Formats a parameter/value pair for html
-        Args:
-            - param: parameter name
-            - value: value for parameter
-
-        Returns correctly formatted parameter/value'''
-        if value:
-            if param == 'hm_token' and type(value) is bool:
-                value = self.hm_token
-            return param + '=' + str(value) + '&'
-        else:
-            return ''
+            self.hm_token = ''
+        if username and password and not self.hm_token:
+            self.hm_token = self.get_token(
+                username=username, password=password)
 
     def _assert_hm_token(self, hm_token):
-        '''Falls back to the object's hm_token if necessary, and and raises an
-        assertion error if there is no token. Used for endpoints that require
-        a valid hm_token.'''
         if not hm_token:
             hm_token = self.hm_token
-        assert hm_token, 'Post methods require a valid hm_token'
+        assert hm_token, 'Authemticated methods require a valid hm_token'
         return hm_token
-
-    def _check_status(self, response):
-        '''Checks response status and raises errors accordingly'''
-        sc = response.status_code
-        # 2xx statuses are all success
-        if sc // 100 == 2:
-            assert response.text, 'Invalid response from server'
-            return
-        elif sc == 403:
-            raise RateLimitError()
-        elif sc == 401:
-            response = json.loads(response.text)
-            raise APIError(response['error_msg'])
-        else:
-            raise ValueError('Status code unhandled: ' +
-                             str(sc) + ' for URL ' + response.url)
-
-    def get_session_auth(self):
-        '''Gets a session auth key from the HypeM website cookies'''
-        req = requests.get('http://hypem.com', headers=self.headers)
-        if req.status_code == 200:
-            # it's, uh, either index 1 or 3..?
-            auth = req.cookies['AUTH'].split('%3A')[1]
-            self._auth = auth
-            return auth
-        else:
-            print('Unable to access HypeM')
-            return None
-
-    def set_auth(self, auth):
-        '''Change to user-supplied auth token.
-        Uses auth from API documentation by default'''
-        self._auth = auth
-
-    ''' Methods '''
 
     ''' /artists '''
 
-    def popular_artists(self, sort, page=None, count=None, hm_token=None):
+    @BaseAPI._memoize
+    def popular_artists(self, sort='popular', page=None, count=None,
+                        hm_token=None):
         """Popular Artists
         Equivalent to popular artists chart on the site
         GET method
@@ -171,10 +71,12 @@ class HypeM(object):
 
         assert str(sort) in ['popular'], '"sort" must be popular'
 
-        query_string = '/artists?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'artists?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_artist_info(self, artist, hm_token=None):
         """Get artist metadata
         Get artist metadata like artist thumbnail. Artist must be URI encoded
@@ -189,10 +91,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/artists/' + str(artist) + '?'
-        query_string += self._parse_params(locals().copy(), ['artist'])
+        params = self._parse_params(locals().copy(), ['artist'])
+        query_string = 'artists/' + str(artist) + '?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_artist_tracks(self, artist, page=None, count=None, hm_token=None):
         """Get artist tracks
         Artist must be URI encoded
@@ -209,11 +113,14 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/artists/' + str(artist) + '/tracks?'
-        query_string += self._parse_params(locals().copy(), ['artist'])
+        params = self._parse_params(locals().copy(), ['artist'])
+        query_string = 'artists/' + str(artist) + '/tracks?' + params
+
         return self._get(query_string)
+
     ''' /blogs '''
 
+    @BaseAPI._memoize
     def list_blogs(self, hydrate=None, page=None, count=None, hm_token=None):
         """List all blogs
         Lists all blogs currently tracked by Hype Machine. Not paginated by
@@ -234,10 +141,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/blogs?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'blogs?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def list_blogs_count(self, hm_token=None):
         """Get count of blogs
         Get total count of blogs in directory (useful for pagination)
@@ -252,10 +161,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/blogs/count?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'blogs/count?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_site_info(self, siteid, hm_token=None):
         """Get blog metadata
         Get blog information like url, number of subscribers, etc
@@ -270,10 +181,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/blogs/' + str(siteid) + '?'
-        query_string += self._parse_params(locals().copy(), ['siteid'])
+        params = self._parse_params(locals().copy(), ['siteid'])
+        query_string = 'blogs/' + str(siteid) + '?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_blog_tracks(self, siteid, page=None, count=None, hm_token=None):
         """Get blog tracks
 
@@ -290,12 +203,14 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/blogs/' + str(siteid) + '/tracks?'
-        query_string += self._parse_params(locals().copy(), ['siteid'])
+        params = self._parse_params(locals().copy(), ['siteid'])
+        query_string = 'blogs/' + str(siteid) + '/tracks?' + params
+
         return self._get(query_string)
 
     ''' /featured '''
 
+    @BaseAPI._memoize
     def featured(self, type='all', page=None, count=None, hm_token=None):
         """Get featured things, interleaved or separated
         count and page are only meaningful in 'premieres' mode, otherwise we
@@ -315,15 +230,17 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        assert str(type) in ['premieres', 'all'], ('"type" must be premieres'
-                                                   'or all')
+        assert str(type) in ['premieres',
+                             'all'], '"type" must be premieres or all'
 
-        query_string = '/featured?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'featured?' + params
+
         return self._get(query_string)
 
     ''' /me '''
 
+    @BaseAPI._memoize
     def favorites_me(self, hm_token=None, page=None, count=None):
         """Get my favorites
 
@@ -340,8 +257,9 @@ class HypeM(object):
         """
         hm_token = self._assert_hm_token(hm_token)
 
-        query_string = '/me/favorites?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'me/favorites?' + params
+
         return self._get(query_string)
 
     def toggle_favorite(self, type, val, hm_token=None):
@@ -362,14 +280,15 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(type) in ['item', 'site', 'user'], ('"type" must be item or'
-                                                       'site or user')
+        assert str(type) in ['item', 'site',
+                             'user'], '"type" must be item or site or user'
 
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/me/favorites'  # defined after payload bc of locals() call
+        endpoint = 'me/favorites?' + self._param('hm_token', hm_token)
 
         return self._post(endpoint, payload)
 
+    @BaseAPI._memoize
     def playlist_me(self, playlist_id, hm_token=None, page=None, count=None):
         """Get items in my playlist
         Playlist names are available at /me/playlist_names
@@ -378,7 +297,7 @@ class HypeM(object):
         Args:
             REQUIRED:
             - int playlist_id: id of playlist
-                allowable values: 0, 1, 2
+                allowable values: 1, 2, 3
             - string hm_token: user token from /signup or /get_token
             Optional:
             - int page: the page of the collection
@@ -387,23 +306,24 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(playlist_id) in ['0', '1', '2'], ('"playlist_id" must be 0 '
-                                                     'or 1 or 2')
+        assert str(playlist_id) in [
+            '1', '2', '3'], '"playlist_id" must be 1 or 2 or 3'
 
-        query_string = '/me/playlists/' + str(playlist_id) + '?'
-        query_string += self._parse_params(locals().copy(), ['playlist_id'])
+        params = self._parse_params(locals().copy(), ['playlist_id'])
+        query_string = 'me/playlists/' + str(playlist_id) + '?' + params
+
         return self._get(query_string)
 
     def add_playlist(self, playlist_id, itemid, hm_token=None):
         """Add item to playlist
-        Returns 1 or 0, reflecting success and failure, respectively. Will
-        also add item to favorites, if not already present there
+        Returns 1 or 0, reflecting success and failure, respectively. Will also
+        add item to favorites, if not already present there
         POST method
 
         Args:
             REQUIRED:
             - int playlist_id: id of playlist
-                allowable values: 0, 1, 2
+                allowable values: 1, 2, 3
             - string itemid: itemid of item to add
             - string hm_token: user token from /signup or /get_token
             Optional:
@@ -412,12 +332,13 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(playlist_id) in ['0', '1', '2'], ('"playlist_id" must be 0 '
-                                                     'or 1 or 2')
+        assert str(playlist_id) in [
+            '0', '1', '2'], '"playlist_id" must be 1 or 2 or 3'
 
         payload = self._parse_payload(locals().copy(), ['playlist_id'])
-        endpoint = '/me/playlists/' + str(playlist_id) + ''
-        # defined afterpayload bc of locals() call
+        # defined after payload bc of locals() call
+        endpoint = ('me/playlists/' + str(playlist_id) + '?' +
+                    self._param('hm_token', hm_token))
 
         return self._post(endpoint, payload)
 
@@ -439,17 +360,18 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(playlist_id) in ['0', '1', '2'], ('"playlist_id" must be 0 '
-                                                     'or 1 or 2')
+        assert str(playlist_id) in [
+            '0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
 
-        payload = self._parse_payload(locals().copy(), ['playlist_id',
-                                                        'itemid'])
-        endpoint = ('/me/playlists/' + str(playlist_id) + '/items/' +
-                    str(itemid) + '')
+        payload = self._parse_payload(
+            locals().copy(), ['playlist_id', 'itemid'])
         # defined after payload bc of locals() call
+        endpoint = ('me/playlists/' + str(playlist_id) + '/items/' +
+                    str(itemid) + '?' + self._param('hm_token', self.hm_token))
 
         return self._delete(endpoint, payload)
 
+    @BaseAPI._memoize
     def history_me(self, hm_token=None, sort='latest', page=None, count=None):
         """Get my history
 
@@ -460,7 +382,7 @@ class HypeM(object):
             - string hm_token: user token from /signup or /get_token
             Optional:
             - string sort: sort chronologically or by frequency of recent
-            listening (default is 'latest')
+                listening (default is 'latest')
                 allowable values: latest, obsessed
             - int page: the page of the collection
             - int count: items per page
@@ -468,11 +390,12 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(sort) in ['latest', 'obsessed'], ('"sort" must be latest or'
-                                                     ' obsessed')
+        assert str(sort) in [
+            'latest', 'obsessed'], '"sort" must be latest or obsessed'
 
-        query_string = '/me/history?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'me/history?' + params
+
         return self._get(query_string)
 
     def log_user_action(self, type, itemid, pos, hm_token=None, ts=None):
@@ -500,10 +423,11 @@ class HypeM(object):
         assert str(type) in ['listen'], '"type" must be listen'
 
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/me/history'  # defined after payload bc of locals() call
+        endpoint = 'me/history?' + self._param('hm_token', self.hm_token)
 
         return self._post(endpoint, payload)
 
+    @BaseAPI._memoize
     def friends_me(self, hm_token=None, count=None, page=None):
         """Get my friends
         Not paginated by default, but accepts page and count parameters as
@@ -521,10 +445,12 @@ class HypeM(object):
         """
         hm_token = self._assert_hm_token(hm_token)
 
-        query_string = '/me/friends?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'me/friends?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def feed(self, hm_token=None, mode='all'):
         """Get my subscriptions feed
 
@@ -540,13 +466,16 @@ class HypeM(object):
         Returns JSON of response.
         """
         hm_token = self._assert_hm_token(hm_token)
-        assert str(mode) in ['blogs', 'artists', 'friends', 'all'], (
-            '"mode" ''must be blogs or artists or friends or all')
+        assert str(mode) in ['blogs', 'artists', 'friends',
+                             'all'], ('"mode" must be blogs or artists or ' +
+                                      'friends or all')
 
-        query_string = '/me/feed?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'me/feed?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def feed_count(self, hm_token=None):
         """Get number of "unread" items in my feed
 
@@ -562,8 +491,9 @@ class HypeM(object):
         """
         hm_token = self._assert_hm_token(hm_token)
 
-        query_string = '/me/feed/count?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'me/feed/count?' + params
+
         return self._get(query_string)
 
     def reset_feed_count(self, hm_token=None):
@@ -582,8 +512,7 @@ class HypeM(object):
         hm_token = self._assert_hm_token(hm_token)
 
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/me/feed/count'
-        # defined after payload bc of locals() call
+        endpoint = 'me/feed/count?' + self._param('hm_token', hm_token)
 
         return self._post(endpoint, payload)
 
@@ -604,8 +533,7 @@ class HypeM(object):
         """
 
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/forgot_password'
-        # defined after payload bc of locals() call
+        endpoint = 'forgot_password'
 
         return self._post(endpoint, payload)
 
@@ -630,16 +558,17 @@ class HypeM(object):
 
         Returns JSON of response.
         """
-        hm_token = self._assert_hm_token(hm_token)
         assert any(fb_uid, fb_oauth_token, tw_oauth_token,
-                   tw_oauth_token_secret), (
-            'Must provide at least one valid token')
+                   tw_oauth_token_secret), ('Must provide at least one ' +
+                                            'valid token')
         if tw_oauth_token or tw_oauth_token_secret:
-            assert tw_oauth_token and tw_oauth_token_secret, (
-                'Must provide both twitter token and secret')
+            assert (tw_oauth_token and
+                    tw_oauth_token_secret), ('Must provide both twitter ' +
+                                             'token and secret')
+        hm_token = self._assert_hm_token(hm_token)
 
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/connect'  # defined after payload bc of locals() call
+        endpoint = 'connect?' + self._param('hm_token', hm_token)
 
         return self._post(endpoint, payload)
 
@@ -663,7 +592,7 @@ class HypeM(object):
         assert str(type) in ['fb', 'tw'], '"type" must be fb or tw'
 
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/disconnect'  # defined after payload bc of locals() call
+        endpoint = 'disconnect?' + self._param('hm_token', hm_token)
 
         return self._post(endpoint, payload)
 
@@ -672,9 +601,9 @@ class HypeM(object):
                tw_oauth_token_secret=None):
         """Create account
         This requires a resonably unique device_id. Returns an hm_token upon
-        success, which you can pass as a query parameter to all other
-        endpoints to auth your account. Optionally accepts facebook and twitter
-        tokens to connect those accounts.
+        success, which you can pass as a query parameter to all other endpoints
+        to auth your account. Optionally accepts facebook and twitter tokens to
+        connect those accounts.
         POST method
 
         Args:
@@ -684,25 +613,25 @@ class HypeM(object):
             - string password: desired password
             - bool newsletter: receive newsletter?
             - hex device_id: exactly 16 hex characters (128 bits) uniquely
-            identifying the client device
+                identifying the client device
             Optional:
             - string fb_uid: a facebook API uid
-            - string fb_oauth_token: a facebook API auth token (must be
-                currently valid)
+            - string fb_oauth_token: a facebook API auth token
+                (must be currently valid)
             - string tw_oauth_token: a twitter API token secret
             - string tw_oauth_token_secret: a twitter API token
 
         Returns JSON of response.
         """
-
         if not device_id:
             device_id = uuid.uuid4()
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/signup'  # defined after payload bc of locals() call
+        endpoint = 'signup'
 
         self.hm_token = self._post(endpoint, payload)
         return self.hm_token
 
+    @BaseAPI._memoize
     def get_token(self, username=None, password=None, fb_oauth_token=None,
                   tw_oauth_token=None, tw_oauth_token_secret=None):
         """Obtain an auth token
@@ -717,7 +646,7 @@ class HypeM(object):
             - string username: username
             - string password: password
             - string fb_oauth_token: a facebook API auth token (must be
-            currently valid)
+                currently valid)
             - string tw_oauth_token: a twitter API token secret
             - string tw_oauth_token_secret: a twitter API token
             Optional:
@@ -725,16 +654,18 @@ class HypeM(object):
         Returns JSON of response.
         """
         assert (username and password) or fb_oauth_token or (
-            tw_oauth_token and tw_oauth_token_secret)
+            tw_oauth_token and tw_oauth_token_secret), ('Must be passed ' +
+                                                        'authentication.')
         device_id = str(uuid.uuid4())
         payload = self._parse_payload(locals().copy(), [])
-        endpoint = '/get_token'
+        endpoint = 'get_token'
         self.hm_token = self._post(endpoint, payload)['hm_token']
 
         return self.hm_token
 
     ''' /set '''
 
+    @BaseAPI._memoize
     def get_tracks_in_set(self, setname, hm_token=None):
         """Get tracks in a previously defined set specified by setname
 
@@ -750,12 +681,14 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/set/' + str(setname) + '/tracks?'
-        query_string += self._parse_params(locals().copy(), ['setname'])
+        params = self._parse_params(locals().copy(), ['setname'])
+        query_string = 'set/' + str(setname) + '/tracks?' + params
+
         return self._get(query_string)
 
     ''' /tags '''
 
+    @BaseAPI._memoize
     def list_tags(self, hm_token=None):
         """List all tags
 
@@ -771,10 +704,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/tags?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'tags?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_tag_info(self, tag, hm_token=None):
         """Get blog metadata
         Get blog information like url, number of subscribers, etc
@@ -791,10 +726,12 @@ class HypeM(object):
         """
         warnings.warn("This method doesn't seem to work and is "
                       "incorrectly documented at the source.", RuntimeWarning)
-        query_string = '/tags/' + str(tag) + '?'
-        query_string += self._parse_params(locals().copy(), ['tag'])
+        params = self._parse_params(locals().copy(), ['tag'])
+        query_string = 'tags/' + str(tag) + '?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_tag_tracks(self, tag, fav_from=None, fav_to=None, page=None,
                        count=None, hm_token=None):
         """Get latest tracks for the tag
@@ -815,20 +752,21 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/tags/' + str(tag) + '/tracks?'
-        query_string += self._parse_params(locals().copy(), ['tag'])
+        params = self._parse_params(locals().copy(), ['tag'])
+        query_string = 'tags/' + str(tag) + '/tracks?' + params
+
         return self._get(query_string)
 
     ''' /tracks '''
 
+    @BaseAPI._memoize
     def latest(self, q=None, sort='latest', page=None, count=None,
                hm_token=None):
         """Tracks
-        List of tracks, unfiltered and chronological (equivalent to
-        'Latest -> All' on the site) by default. Sort options will yield fully
-        sorted result sets when combined with a search parameter (?q=...) or
-        summary charts (loved => popular, posted => popular/artists) on their
-        own
+        List of tracks, unfiltered and chronological (equivalent to 'Latest ->
+        All' on the site) by default. Sort options will yield fully sorted
+        result sets when combined with a search parameter (?q=...) or summary
+        charts (loved => popular, posted => popular/artists) on their own
         GET method
 
         Args:
@@ -837,8 +775,8 @@ class HypeM(object):
             Optional:
             - string q: a string to search for
             - string sort: sort chronologically, by number of favorites or
-            number of blog posts (default is 'latest', must be combined with
-            'q' otherwise)
+                number of blog posts (default is 'latest', must be combined
+                with 'q' otherwise)
                 allowable values: latest, loved, posted
             - int page: the page of the collection
             - int count: items per page
@@ -847,13 +785,16 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        assert str(sort) in ['latest', 'loved', 'posted'], (
-            '"sort" must be latest or loved or posted')
+        assert str(sort) in ['latest', 'loved',
+                             'posted'], ('"sort" must be latest or loved or ' +
+                                         'posted')
 
-        query_string = '/tracks?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'tracks?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def item(self, itemid, hm_token=None):
         """Single track
         Single track
@@ -868,10 +809,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/tracks/' + str(itemid) + '?'
-        query_string += self._parse_params(locals().copy(), ['itemid'])
+        params = self._parse_params(locals().copy(), ['itemid'])
+        query_string = 'tracks/' + str(itemid) + '?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def item_blogs(self, itemid, hm_token=None):
         """Posting blogs
         Blogs that posted this track
@@ -886,10 +829,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/tracks/' + str(itemid) + '/blogs?'
-        query_string += self._parse_params(locals().copy(), ['itemid'])
+        params = self._parse_params(locals().copy(), ['itemid'])
+        query_string = 'tracks/' + str(itemid) + '/blogs?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def item_users(self, itemid, hm_token=None):
         """Favoriting Users
         Users that favorited this track
@@ -904,10 +849,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/tracks/' + str(itemid) + '/users?'
-        query_string += self._parse_params(locals().copy(), ['itemid'])
+        params = self._parse_params(locals().copy(), ['itemid'])
+        query_string = 'tracks/' + str(itemid) + '/users?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def popular(self, mode='now', page=None, count=None, hm_token=None):
         """Popular tracks
         Various popular charts: 3 day top 50 ('now'), calendar last week
@@ -928,15 +875,18 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        assert str(mode) in ['now', 'lastweek', 'noremix', 'remix'], (
-            '"mode" must be now or lastweek or noremix or remix')
+        assert str(mode) in ['now', 'lastweek', 'noremix',
+                             'remix'], ('"mode" must be now or lastweek or ' +
+                                        'noremix or remix')
 
-        query_string = '/popular?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'popular?' + params
+
         return self._get(query_string)
 
     ''' /users '''
 
+    @BaseAPI._memoize
     def search_users(self, q=None, hm_token=None):
         """Search users
         Does not return anything without a query param
@@ -952,10 +902,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/users?'
-        query_string += self._parse_params(locals().copy(), [])
+        params = self._parse_params(locals().copy(), [])
+        query_string = 'users?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_user(self, username, hm_token=None):
         """Get user metadata
         Get user information like url, number of subscribers, etc
@@ -970,10 +922,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/users/' + str(username) + '?'
-        query_string += self._parse_params(locals().copy(), ['username'])
+        params = self._parse_params(locals().copy(), ['username'])
+        query_string = 'users/' + str(username) + '?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_user_tracks(self, username, page=None, count=None, hm_token=None):
         """Get the user's favorites
 
@@ -990,10 +944,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/users/' + str(username) + '/favorites?'
-        query_string += self._parse_params(locals().copy(), ['username'])
+        params = self._parse_params(locals().copy(), ['username'])
+        query_string = 'users/' + str(username) + '/favorites?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def playlis(self, username, playlist_id, page=None, count=None):
         """Get items in the user's playlist
 
@@ -1011,15 +967,17 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        assert str(playlist_id) in ['0', '1', '2'], (
-            '"playlist_id" must be 0 or 1 or 2')
+        assert str(playlist_id) in [
+            '0', '1', '2'], '"playlist_id" must be 0 or 1 or 2'
 
-        query_string = ('/user/' + str(username) + '/playlists/' +
-                        str(playlist_id) + '?')
-        query_string += self._parse_params(locals().copy(),
-                                           ['username', 'playlist_id'])
+        params = self._parse_params(
+            locals().copy(), ['username', 'playlist_id'])
+        query_string = 'user/' + \
+            str(username) + '/playlists/' + str(playlist_id) + '?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_user_history(self, username, page=None, count=None, hm_token=None):
         """Get the user's play history
 
@@ -1036,10 +994,12 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/users/' + str(username) + '/history?'
-        query_string += self._parse_params(locals().copy(), ['username'])
+        params = self._parse_params(locals().copy(), ['username'])
+        query_string = 'users/' + str(username) + '/history?' + params
+
         return self._get(query_string)
 
+    @BaseAPI._memoize
     def get_user_friends(self, username, hm_token=None, count=None, page=None):
         """Get the user's friends
         Not paginated by default, but accepts page and count parameters as
@@ -1057,24 +1017,24 @@ class HypeM(object):
         Returns JSON of response.
         """
 
-        query_string = '/users/' + str(username) + '/friends?'
-        query_string += self._parse_params(locals().copy(), ['username'])
+        params = self._parse_params(locals().copy(), ['username'])
+        query_string = 'users/' + str(username) + '/friends?' + params
+
         return self._get(query_string)
 
     ''' scraping methods... please be nice to their servers '''
 
     def _get_soup(self, url):
         '''Returns a BeautifulSoup object for a given URL'''
-        req = self.session.get(url)
+        req = self._session.get(url)
         self._check_status(req)
         return BeautifulSoup(req.text, 'lxml')
 
+    @BaseAPI._memoize
     def get_track_tags(self, track_id):
         '''Scrapes the tags for a given, if any
-
         Args:
             - string track_id: track id of the song on HypeM
-
         Returns list of genre tags.'''
 
         genre_tags = []
@@ -1088,14 +1048,12 @@ class HypeM(object):
                 genre_tags.append(tag.text)
         return genre_tags
 
+    @BaseAPI._memoize
     def get_track_stream(self, track_id):
         '''Scrapes the link to the raw mp3 of a track.
-
         Args:
             - string track_id: the track_id of the song
-
         credit to @fzakaria: https://github.com/fzakaria/HypeScript
-
         Returns url to mp3 stream'''
 
         soup = self._get_soup('http://hypem.com/track/' + track_id)
@@ -1116,9 +1074,9 @@ class HypeM(object):
             return ''
         # get hypem to serve stream url
         serve_url = 'http://hypem.com/serve/source/{}/{}'.format(id_, key)
-        song_data_response = self.session.get(serve_url,
-                                              headers={'Content-Type':
-                                                       'application/json'})
+        song_data_response = self._session.get(serve_url,
+                                               headers={'Content-Type':
+                                                        'application/json'})
         song_data = json.loads(song_data_response.text)
         return song_data.get('url')
 

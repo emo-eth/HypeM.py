@@ -4,6 +4,7 @@ from LazyScripts.LazyJSON import read_json
 
 # string to format for GET methods
 GET_METHOD_STR = '''
+    @BaseAPI._memoize
     def {0}(self, {1}):
         """{2}
         {3} method
@@ -18,8 +19,9 @@ GET_METHOD_STR = '''
         """
         {8}
 
-        query_string = '{6}?'
-        query_string += self._parse_params(locals().copy(), {7})
+        params = self._parse_params(locals().copy(), {7})
+        query_string = '{6}?' + params
+
         return self._get(query_string)'''
 # string to format for POST/DELETE methods
 POST_METHOD_STR = '''
@@ -38,7 +40,7 @@ POST_METHOD_STR = '''
         {8}
 
         payload = self._parse_payload(locals().copy(), {7})
-        endpoint = '{6}'  # defined after payload bc of locals() call
+        endpoint = '{6}'  + self._param('hm_token', self.hm_token)
 
         return self._post(endpoint, payload)'''
 # page/count params are not always included when they are supported;

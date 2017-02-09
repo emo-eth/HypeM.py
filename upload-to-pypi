@@ -1,6 +1,7 @@
 #!/bin/sh
 
 source version.py
+git add .
 git commit -m "version update"
 git push origin master
 git tag $version

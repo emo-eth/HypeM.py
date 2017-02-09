@@ -2,7 +2,7 @@
 
 from setuptools import setup
 
-version = '1.0.2'
+version = '1.1.0'
 
 setup(name='HypeM.py',
       py_modules=['HypeM'],
@@ -16,5 +16,5 @@ setup(name='HypeM.py',
       license='Apache License 2.0',
       keywords=['hypem', 'music', 'hype', 'machine', 'blogs', 'api', 'blog'],
       classifiers=[],
-      install_requires=['requests >= 2.2.1', 'beautifulsoup4 >= 4.4.1']
+      install_requires=['beautifulsoup4 >= 4.4.1', 'baseapi >= 0.1.0']
       )
